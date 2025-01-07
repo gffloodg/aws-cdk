@@ -1997,6 +1997,13 @@ export interface SubnetProps {
    * @default false
    */
   readonly assignIpv6AddressOnCreation?: boolean;
+
+  /**
+   * The Amazon Resource Name (ARN) of the Outpost.
+   * 
+   * @default - no Outpost ARN.
+   */
+  readonly outpostArn?: string;
 }
 
 /**
@@ -2095,6 +2102,7 @@ export class Subnet extends Resource implements ISubnet {
       mapPublicIpOnLaunch: props.mapPublicIpOnLaunch,
       ipv6CidrBlock: props.ipv6CidrBlock,
       assignIpv6AddressOnCreation: props.assignIpv6AddressOnCreation,
+      outpostArn: props.outpostArn
     });
     this.subnetId = subnet.ref;
     this.subnetVpcId = subnet.attrVpcId;
