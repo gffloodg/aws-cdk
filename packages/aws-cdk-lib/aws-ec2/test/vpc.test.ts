@@ -2065,19 +2065,19 @@ describe('vpc', () => {
       const vpc = new Vpc(stack, 'TheVPC', { ipAddresses: IpAddresses.cidr('192.168.0.0/16') });
 
       // arn:aws([a-z-]+)?:outposts:[a-z\d-]+:\d{12}:outpost/op-[a-f0-9]{17}
-      const outpostArnValue = 'arn:aws:outposts::012345678901:outpost/op-0123456789abcdef0';
+      const outpostValue = 'arn:aws:outposts::012345678901:outpost/op-0123456789abcdef0';
 
       // WHEN
       const outpostSubnet = new Subnet(stack, 'OutpostSubnet', {
         availabilityZone: 'us-east-1a',
         vpcId: vpc.vpcId,
         cidrBlock: '192.168.0.0/18',
-        outpostArn: outpostArnValue,
+        outpost: outpostValue,
       });
 
       // THEN
       Template.fromStack(stack).hasResourceProperties('AWS::EC2::Subnet', {
-        OutpostArn: outpostArnValue,
+        OutpostArn: outpostValue,
       });
     });
 
@@ -2087,23 +2087,23 @@ describe('vpc', () => {
       const vpc = new Vpc(stack, 'TheVPC', { ipAddresses: IpAddresses.cidr('192.168.0.0/16') });
 
       // arn:aws([a-z-]+)?:outposts:[a-z\d-]+:\d{12}:outpost/op-[a-f0-9]{17}
-      const outpostArnValue = 'arn:aws:outposts::012345678901:outpost/op-0123456789abcdef0';
+      const outpostValue = 'arn:aws:outposts::012345678901:outpost/op-0123456789abcdef0';
 
       // WHEN
       const outpostSubnet = new PrivateSubnet(stack, 'OutpostSubnet', {
         availabilityZone: 'us-east-1a',
         vpcId: vpc.vpcId,
         cidrBlock: '192.168.0.0/18',
-        outpostArn: outpostArnValue,
+        outpost: outpostValue,
       });
 
       // THEN
       Template.fromStack(stack).hasResourceProperties('AWS::EC2::Subnet', {
-        OutpostArn: outpostArnValue,
+        OutpostArn: outpostValue,
       });
     });
   });
-  
+
   describe('subnet selection', () => {
     test('selecting default subnets returns the private ones', () => {
       // GIVEN

@@ -1217,6 +1217,24 @@ export interface SubnetConfiguration {
    * @default true
    */
   readonly ipv6AssignAddressOnCreation?: boolean;
+
+  /**
+   * Provision the subnet on an Outpost rather than in a Region
+   *
+   * Note a subnet on an Outpost will only be deployed in the specified outpostAvailabilityZone
+   *
+   * @default - The subnet is deployed in region
+   */
+  readonly outpostArn?: string;
+
+  /**
+   * The Availability Zone the Outpost is attached to
+   *
+   * Note that this value is only used for outpostArn is defined
+   *
+   * @default - Throws an error if outpostArn is defined
+   */
+  readonly outpostAvailabilityZone?: string;
 }
 
 /**
@@ -1746,15 +1764,30 @@ export class Vpc extends VpcBase {
   private createSubnets() {
     const requestedSubnets: RequestedSubnet[] = [];
 
-    this.subnetConfiguration.forEach((configuration)=> (
-      this.availabilityZones.forEach((az, index) => {
+    this.subnetConfiguration
+      .filter((configuration) => (configuration.outpostArn === undefined))
+      .forEach((configuration)=> {
+        this.availabilityZones.forEach((az, index) => {
+          requestedSubnets.push({
+            availabilityZone: az,
+            subnetConstructId: subnetId(configuration.name, index),
+            configuration,
+          });
+        });
+      });
+
+    this.subnetConfiguration
+      .filter((configuration) => (configuration.outpostArn !== undefined))
+      .forEach((configuration, index)=> {
+        if (!configuration.outpostAvailabilityZone) {
+          throw new Error('outpostAvailabilityZone must be defined if outpostArn is defined in the subnet configuration');
+        }
         requestedSubnets.push({
-          availabilityZone: az,
+          availabilityZone: configuration.outpostAvailabilityZone,
           subnetConstructId: subnetId(configuration.name, index),
           configuration,
         });
-      },
-      )));
+      });
 
     let { allocatedSubnets } = this.ipAddresses.allocateSubnetsCidr({
       vpcCidr: this.vpcCidrBlock,
@@ -1859,6 +1892,7 @@ export class Vpc extends VpcBase {
         mapPublicIpOnLaunch: this.calculateMapPublicIpOnLaunch(subnetConfig),
         ipv6CidrBlock: allocated.ipv6Cidr,
         assignIpv6AddressOnCreation: this.useIpv6 ? subnetConfig.ipv6AssignAddressOnCreation ?? true : undefined,
+        outpost: subnetConfig.outpostArn ? subnetConfig.outpostArn : undefined,
       } satisfies SubnetProps;
 
       let subnet: Subnet;
@@ -2000,10 +2034,10 @@ export interface SubnetProps {
 
   /**
    * The Amazon Resource Name (ARN) of the Outpost.
-   * 
+   *
    * @default - no Outpost ARN.
    */
-  readonly outpostArn?: string;
+  readonly outpost?: string;
 }
 
 /**
@@ -2103,7 +2137,7 @@ export class Subnet extends Resource implements ISubnet {
       mapPublicIpOnLaunch: props.mapPublicIpOnLaunch,
       ipv6CidrBlock: props.ipv6CidrBlock,
       assignIpv6AddressOnCreation: props.assignIpv6AddressOnCreation,
-      outpostArn: props.outpostArn
+      outpostArn: props.outpost,
     });
     this.subnetId = subnet.ref;
     this.subnetVpcId = subnet.attrVpcId;

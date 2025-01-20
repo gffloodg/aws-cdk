@@ -6,6 +6,7 @@ import { EndpointServiceAZContextProviderPlugin } from './endpoint-service-avail
 import { HostedZoneContextProviderPlugin } from './hosted-zones';
 import { KeyContextProviderPlugin } from './keys';
 import { LoadBalancerContextProviderPlugin, LoadBalancerListenerContextProviderPlugin } from './load-balancers';
+import { LocalGatewayContextProviderPlugin } from './local-gateways';
 import { SecurityGroupContextProviderPlugin } from './security-groups';
 import { SSMContextProviderPlugin } from './ssm-parameters';
 import { VpcNetworkContextProviderPlugin } from './vpcs';
@@ -119,4 +120,5 @@ const availableContextProviders: ProviderMap = {
   [cxschema.ContextProvider.LOAD_BALANCER_PROVIDER]: (s) => new LoadBalancerContextProviderPlugin(s),
   [cxschema.ContextProvider.LOAD_BALANCER_LISTENER_PROVIDER]: (s) => new LoadBalancerListenerContextProviderPlugin(s),
   [cxschema.ContextProvider.KEY_PROVIDER]: (s) => new KeyContextProviderPlugin(s),
+  [cxschema.ContextProvider.LOCAL_GATEWAY_PROVIDER]: (s) => new LocalGatewayContextProviderPlugin(s),
 };
