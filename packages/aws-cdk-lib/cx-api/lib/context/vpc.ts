@@ -14,13 +14,13 @@ export enum VpcSubnetGroupType {
   ISOLATED = 'Isolated',
 
   /** Public Outpost subnet group type. */
-  PUBLIC_OUTPOST = 'Public',
+  PUBLIC_OUTPOST = 'PublicOutpost',
 
   /** Private Outpost subnet group type. */
-  PRIVATE_OUTPOST = 'Private',
+  PRIVATE_OUTPOST = 'PrivateOutpost',
 
   /** Isolated Outpost subnet group type. */
-  ISOLATED_OUTPOST = 'Isolated',
+  ISOLATED_OUTPOST = 'IsolatedOutpost',
 }
 
 /**

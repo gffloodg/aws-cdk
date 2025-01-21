@@ -2000,6 +2000,9 @@ export class Vpc extends VpcBase {
     this.subnetConfiguration
       .filter((configuration) => !outpostTypes.includes(configuration.subnetType))
       .forEach((configuration) => {
+        if (configuration.outpostArn || configuration.outpostAvailabilityZone || configuration.outpostDefaultRoute) {
+          throw new Error('outpost* properties should only be set when type is one of PUBLIC_OUTPOST, PRIVATE_OUTPOST_WITH_EGRESS, or PRIVATE_OUTPOST_ISOLATED');
+        }
         this.availabilityZones.forEach((az, index) => {
           requestedSubnets.push({
             availabilityZone: az,
@@ -2089,7 +2092,7 @@ export class Vpc extends VpcBase {
    * Always defaults to false in non-public subnets and will error if set.
    */
   private calculateMapPublicIpOnLaunch(subnetConfig: SubnetConfiguration) {
-    if (subnetConfig.subnetType === SubnetType.PUBLIC) {
+    if (subnetConfig.subnetType === SubnetType.PUBLIC || (subnetConfig.subnetType === SubnetType.PUBLIC_OUTPOST)) {
       return (subnetConfig.mapPublicIpOnLaunch !== undefined)
         ? subnetConfig.mapPublicIpOnLaunch
         : !this.useIpv6; // changes default based on protocol of vpc
@@ -3005,7 +3008,7 @@ function determineNatGatewayCount(requestedCount: number | undefined, subnetConf
 
   if (count > 0 && !hasPublicSubnets) {
     // eslint-disable-next-line max-len
-    throw new Error(`If you configure PRIVATE subnets in 'subnetConfiguration', you must also configure PUBLIC subnets to put the NAT gateways into (got ${JSON.stringify(subnetConfig)}.`);
+    throw new Error(`If you configure PRIVATE, PUBLIC_OUPOST, or PRIVATE_OUPOST_WITH_EGRESS subnets in 'subnetConfiguration', you must also configure PUBLIC subnets to put the NAT gateways into (got ${JSON.stringify(subnetConfig)}.`);
   }
 
   return count;
