@@ -279,6 +279,50 @@ export enum SubnetType {
    * Public subnets route outbound traffic via an Internet Gateway.
    */
   PUBLIC = 'Public',
+
+  /**
+   * Subnet deployed on an AWS Outpost that connects to the Internet
+   *
+   * Instances in a Public subnet can connect to the Internet and can be
+   * connected to from the Internet as long as they are launched with public
+   * IPs (controlled on the AutoScalingGroup or other constructs that launch
+   * instances).
+   *
+   * Public subnets route outbound traffic via an Internet Gateway.
+   */
+  PUBLIC_OUTPOST = 'Public_Outpost',
+
+  /**
+   * Subnet deployed on an AWS Outpost that routes to the internet, but not vice versa.
+   *
+   * Instances in a private subnet can connect to the Internet, but will not
+   * allow connections to be initiated from the Internet. Egress to the internet will
+   * need to be provided.
+   * NAT Gateway(s) are the default solution to providing this subnet type the ability to route Internet traffic.
+   * If a NAT Gateway is not required or desired, set `natGateways:0` or use
+   * `SubnetType.PRIVATE_OUTPOST_ISOLATED` instead.
+   *
+   * By default, a NAT gateway is created in every public subnet for maximum availability.
+   * Be aware that you will be charged for NAT gateways.
+   *
+   * Normally a Private subnet will use a NAT gateway in the same AZ, but
+   * if `natGateways` is used to reduce the number of NAT gateways, a NAT
+   * gateway from another AZ will be used instead.
+   */
+  PRIVATE_OUTPOST_WITH_EGRESS = 'Private_Outpost',
+
+  /**
+   * Subnet deployed on an AWS Outpost that does not route traffic to the Internet (in this VPC),
+   * and as such, do not require NAT gateways.
+   *
+   * Isolated subnets can only connect to or be connected to from other
+   * instances in the same VPC. A default VPC configuration will not include
+   * isolated subnets.
+   *
+   * This can be good for subnets with RDS or Elasticache instances,
+   * or which route Internet traffic through a peer VPC.
+   */
+  PRIVATE_OUTPOST_ISOLATED = 'Isolated_Outpost',
 }
 
 /**
@@ -408,7 +452,6 @@ export interface SelectedSubnets {
  * A new or imported VPC
  */
 abstract class VpcBase extends Resource implements IVpc {
-
   /**
    * Identifier for this VPC
    */
@@ -438,6 +481,21 @@ abstract class VpcBase extends Resource implements IVpc {
    * List of isolated subnets in this VPC
    */
   public abstract readonly isolatedSubnets: ISubnet[];
+
+  /**
+   * List of public subnets in this VPC deployed to an Outpost
+   */
+  public abstract readonly publicOutpostSubnets: ISubnet[];
+
+  /**
+   * List of private subnets in this VPC deployed to an Outpost
+   */
+  public abstract readonly privateOutpostSubnets: ISubnet[];
+
+  /**
+   * List of isolated subnets in this VPC deployed to an Outpost
+   */
+  public abstract readonly isolatedOutpostSubnets: ISubnet[];
 
   /**
    * AZs for this VPC
@@ -476,11 +534,15 @@ abstract class VpcBase extends Resource implements IVpc {
     const pubs = new Set(this.publicSubnets);
 
     return {
-      subnetIds: subnets.map(s => s.subnetId),
-      get availabilityZones(): string[] { return subnets.map(s => s.availabilityZone); },
-      internetConnectivityEstablished: tap(new CompositeDependable(), d => subnets.forEach(s => d.add(s.internetConnectivityEstablished))),
+      subnetIds: subnets.map((s) => s.subnetId),
+      get availabilityZones(): string[] {
+        return subnets.map((s) => s.availabilityZone);
+      },
+      internetConnectivityEstablished: tap(new CompositeDependable(), (d) =>
+        subnets.forEach((s) => d.add(s.internetConnectivityEstablished)),
+      ),
       subnets,
-      hasPublic: subnets.some(s => pubs.has(s)),
+      hasPublic: subnets.some((s) => pubs.has(s)),
       isPendingLookup: this.incompleteSubnetDefinition,
     };
   }
@@ -507,7 +569,7 @@ abstract class VpcBase extends Resource implements IVpc {
 
     // Propagate routes on route tables associated with the right subnets
     const vpnRoutePropagation = options.vpnRoutePropagation ?? [{}];
-    const routeTableIds = allRouteTableIds(flatten(vpnRoutePropagation.map(s => this.selectSubnets(s).subnets)));
+    const routeTableIds = allRouteTableIds(flatten(vpnRoutePropagation.map((s) => this.selectSubnets(s).subnets)));
 
     if (routeTableIds.length === 0) {
       Annotations.of(this).addError(`enableVpnGateway: no subnets matching selection: '${JSON.stringify(vpnRoutePropagation)}'. Select other subnets to add routes to.`);
@@ -592,10 +654,11 @@ abstract class VpcBase extends Resource implements IVpc {
 
     let subnets;
 
-    if (selection.subnetGroupName !== undefined) { // Select by name
+    if (selection.subnetGroupName !== undefined) {
+      // Select by name
       subnets = this.selectSubnetObjectsByName(selection.subnetGroupName);
-
-    } else { // Or specify by type
+    } else {
+      // Or specify by type
       const type = selection.subnetType || SubnetType.PRIVATE_WITH_EGRESS;
       subnets = this.selectSubnetObjectsByType(type);
     }
@@ -617,11 +680,13 @@ abstract class VpcBase extends Resource implements IVpc {
 
   private selectSubnetObjectsByName(groupName: string) {
     const allSubnets = [...this.publicSubnets, ...this.privateSubnets, ...this.isolatedSubnets];
-    const subnets = allSubnets.filter(s => subnetGroupNameFromConstructId(s) === groupName);
+    const subnets = allSubnets.filter((s) => subnetGroupNameFromConstructId(s) === groupName);
 
     if (subnets.length === 0 && !this.incompleteSubnetDefinition) {
       const names = Array.from(new Set(allSubnets.map(subnetGroupNameFromConstructId)));
-      throw new Error(`There are no subnet groups with name '${groupName}' in this VPC. Available names: ${names}`);
+      throw new Error(
+        `There are no subnet groups with name '${groupName}' in this VPC. Available names: ${names}`,
+      );
     }
 
     return subnets;
@@ -635,6 +700,9 @@ abstract class VpcBase extends Resource implements IVpc {
       [SubnetType.PRIVATE_WITH_EGRESS]: this.privateSubnets,
       [SubnetType.PRIVATE]: this.privateSubnets,
       [SubnetType.PUBLIC]: this.publicSubnets,
+      [SubnetType.PUBLIC_OUTPOST]: this.publicOutpostSubnets,
+      [SubnetType.PRIVATE_OUTPOST_WITH_EGRESS]: this.privateOutpostSubnets,
+      [SubnetType.PRIVATE_OUTPOST_ISOLATED]: this.isolatedOutpostSubnets,
     };
 
     const subnets = allSubnets[subnetType];
@@ -643,8 +711,12 @@ abstract class VpcBase extends Resource implements IVpc {
     // see ImportedVpc
 
     if (subnets.length === 0 && !this.incompleteSubnetDefinition) {
-      const availableTypes = Object.entries(allSubnets).filter(([_, subs]) => subs.length > 0).map(([typeName, _]) => typeName);
-      throw new Error(`There are no '${subnetType}' subnet groups in this VPC. Available types: ${availableTypes}`);
+      const availableTypes = Object.entries(allSubnets)
+        .filter(([_, subs]) => subs.length > 0)
+        .map(([typeName, _]) => typeName);
+      throw new Error(
+        `There are no '${subnetType}' subnet groups in this VPC. Available types: ${availableTypes}`,
+      );
     }
 
     return subnets;
@@ -657,26 +729,45 @@ abstract class VpcBase extends Resource implements IVpc {
    * PUBLIC (in that order) that has any subnets.
    */
   private reifySelectionDefaults(placement: SubnetSelection): SubnetSelection {
-
     if (placement.subnetName !== undefined) {
       if (placement.subnetGroupName !== undefined) {
-        throw new Error('Please use only \'subnetGroupName\' (\'subnetName\' is deprecated and has the same behavior)');
+        throw new Error(
+          "Please use only 'subnetGroupName' ('subnetName' is deprecated and has the same behavior)",
+        );
       } else {
-        Annotations.of(this).addWarningV2('@aws-cdk/aws-ec2:subnetNameDeprecated', 'Usage of \'subnetName\' in SubnetSelection is deprecated, use \'subnetGroupName\' instead');
+        Annotations.of(this).addWarningV2(
+          '@aws-cdk/aws-ec2:subnetNameDeprecated',
+          "Usage of 'subnetName' in SubnetSelection is deprecated, use 'subnetGroupName' instead",
+        );
       }
       placement = { ...placement, subnetGroupName: placement.subnetName };
     }
 
-    const exclusiveSelections: Array<keyof SubnetSelection> = ['subnets', 'subnetType', 'subnetGroupName'];
-    const providedSelections = exclusiveSelections.filter(key => placement[key] !== undefined);
+    const exclusiveSelections: Array<keyof SubnetSelection> = [
+      'subnets',
+      'subnetType',
+      'subnetGroupName',
+    ];
+    const providedSelections = exclusiveSelections.filter(
+      (key) => placement[key] !== undefined,
+    );
     if (providedSelections.length > 1) {
-      throw new Error(`Only one of '${providedSelections}' can be supplied to subnet selection.`);
+      throw new Error(
+        `Only one of '${providedSelections}' can be supplied to subnet selection.`,
+      );
     }
 
-    if (placement.subnetType === undefined && placement.subnetGroupName === undefined && placement.subnets === undefined) {
+    if (
+      placement.subnetType === undefined &&
+            placement.subnetGroupName === undefined &&
+            placement.subnets === undefined
+    ) {
       // Return default subnet type based on subnets that actually exist
       let subnetType = this.privateSubnets.length
-        ? SubnetType.PRIVATE_WITH_EGRESS : this.isolatedSubnets.length ? SubnetType.PRIVATE_ISOLATED : SubnetType.PUBLIC;
+        ? SubnetType.PRIVATE_WITH_EGRESS
+        : this.isolatedSubnets.length
+          ? SubnetType.PRIVATE_ISOLATED
+          : SubnetType.PUBLIC;
       placement = { ...placement, subnetType: subnetType };
     }
 
@@ -684,15 +775,22 @@ abstract class VpcBase extends Resource implements IVpc {
     let subnetFilters = placement.subnetFilters ?? [];
 
     // Backwards compatibility with existing `availabilityZones` and `onePerAz` functionality
-    if (placement.availabilityZones !== undefined) { // Filter by AZs, if specified
+    if (placement.availabilityZones !== undefined) {
+      // Filter by AZs, if specified
       subnetFilters.push(SubnetFilter.availabilityZones(placement.availabilityZones));
     }
-    if (!!placement.onePerAz) { // Ensure one per AZ if specified
+    if (!!placement.onePerAz) {
+      // Ensure one per AZ if specified
       subnetFilters.push(SubnetFilter.onePerAz());
     }
 
     // Overwrite the provided placement filters and remove the availabilityZones and onePerAz properties
-    placement = { ...placement, subnetFilters: subnetFilters, availabilityZones: undefined, onePerAz: undefined };
+    placement = {
+      ...placement,
+      subnetFilters: subnetFilters,
+      availabilityZones: undefined,
+      onePerAz: undefined,
+    };
     const { availabilityZones, onePerAz, ...rest } = placement;
 
     return rest;
@@ -827,6 +925,114 @@ export interface VpcAttributes {
    * @default - Retrieving the IPv4 CIDR block of any isolated subnet will fail
    */
   readonly isolatedSubnetIpv4CidrBlocks?: string[];
+
+  /**
+   * List of public outpost subnet IDs
+   *
+   * Must be undefined or match the availability zones in length and order.
+   *
+   * @default - The VPC does not have any public outpost subnets
+   */
+  readonly publicOutpostSubnetIds?: string[];
+
+  /**
+   * List of names for the public outpost subnets
+   *
+   * Must be undefined or have a name for every public outpost subnet group.
+   *
+   * @default - All public outpost subnets will have the name `PublicOutpost`
+   */
+  readonly publicOutpostSubnetNames?: string[];
+
+  /**
+   * List of IDs of route tables for the public outpost subnets.
+   *
+   * Must be undefined or have a name for every public outpost subnet group.
+   *
+   * @default - Retrieving the route table ID of any public outpost subnet will fail
+   */
+  readonly publicOutpostSubnetRouteTableIds?: string[];
+
+  /**
+   * List of IPv4 CIDR blocks for the public outpost subnets.
+   *
+   * Must be undefined or have an entry for every public outpost subnet group.
+   *
+   * @default - Retrieving the IPv4 CIDR block of any public outpost subnet will fail
+   */
+  readonly publicOutpostSubnetIpv4CidrBlocks?: string[];
+
+  /**
+   * List of private outpost subnet IDs
+   *
+   * Must be undefined or match the availability zones in length and order.
+   *
+   * @default - The VPC does not have any private outpost subnets
+   */
+  readonly privateOutpostSubnetIds?: string[];
+
+  /**
+   * List of names for the private outpost subnets
+   *
+   * Must be undefined or have a name for every private outpost subnet group.
+   *
+   * @default - All private outpost subnets will have the name `PrivateOutpost`
+   */
+  readonly privateOutpostSubnetNames?: string[];
+
+  /**
+   * List of IDs of route tables for the private outpost subnets.
+   *
+   * Must be undefined or have a name for every private outpost subnet group.
+   *
+   * @default - Retrieving the route table ID of any private outpost subnet will fail
+   */
+  readonly privateOutpostSubnetRouteTableIds?: string[];
+
+  /**
+   * List of IPv4 CIDR blocks for the private outpost subnets.
+   *
+   * Must be undefined or have an entry for every private outpost subnet group.
+   *
+   * @default - Retrieving the IPv4 CIDR block of any private outpost subnet will fail
+   */
+  readonly privateOutpostSubnetIpv4CidrBlocks?: string[];
+
+  /**
+   * List of isolated outpost subnet IDs
+   *
+   * Must be undefined or match the availability zones in length and order.
+   *
+   * @default - The VPC does not have any isolated outpost subnets
+   */
+  readonly isolatedOutpostSubnetIds?: string[];
+
+  /**
+   * List of names for the isolated outpost subnets
+   *
+   * Must be undefined or have a name for every isolated outpost subnet group.
+   *
+   * @default - All isolated outpost subnets will have the name `IsolatedOutpost`
+   */
+  readonly isolatedOutpostSubnetNames?: string[];
+
+  /**
+   * List of IDs of route tables for the isolated outpost subnets.
+   *
+   * Must be undefined or have a name for every isolated outpost subnet group.
+   *
+   * @default - Retrieving the route table ID of any isolated outpost subnet will fail
+   */
+  readonly isolatedOutpostSubnetRouteTableIds?: string[];
+
+  /**
+   * List of IPv4 CIDR blocks for the isolated subnets.
+   *
+   * Must be undefined or have an entry for every isolated outpost subnet group.
+   *
+   * @default - Retrieving the IPv4 CIDR block of any isolated outpost subnet will fail
+   */
+  readonly isolatedOutpostSubnetIpv4CidrBlocks?: string[];
 
   /**
    * VPN gateway's identifier
@@ -1155,6 +1361,21 @@ export enum DefaultInstanceTenancy {
 }
 
 /**
+ * If the subnet is on an AWS Outpost, controls if the default route (0.0.0.0/0) routes traffic to the local gateway or the AWS Region
+ */
+export enum OutpostDefaultRoute {
+  /**
+   * Route traffic via the Local Gateway
+   */
+  ON_PREMISE = 'on-premise',
+
+  /**
+   * Route traffic to the AWS Region
+   */
+  REGION = 'region',
+}
+
+/**
  * Specify configuration parameters for a single subnet group in a VPC.
  */
 export interface SubnetConfiguration {
@@ -1225,7 +1446,7 @@ export interface SubnetConfiguration {
    *
    * Note a subnet on an Outpost will only be deployed in the specified outpostAvailabilityZone
    *
-   * @default - The subnet is deployed in region
+   * @default - Throws an error if subnet type is an OUPOST subnet type
    */
   readonly outpostArn?: string;
 
@@ -1234,9 +1455,18 @@ export interface SubnetConfiguration {
    *
    * Note that this value is only used for outpostArn is defined
    *
-   * @default - Throws an error if outpostArn is defined
+   * @default - Throws an error if subnet type is an OUPOST subnet type
    */
   readonly outpostAvailabilityZone?: string;
+
+  /**
+   * Controls if the default route (0.0.0.0/0) routes traffic to the local gateway or the AWS Region
+   *
+   * Note this is specific to IPv6 addresses.
+   *
+   * @default OutpostDefaultRoute.ON_PREMISE
+   */
+  readonly outpostDefaultRoute?: OutpostDefaultRoute;
 }
 
 /**
@@ -1436,6 +1666,21 @@ export class Vpc extends VpcBase {
    * List of isolated subnets in this VPC
    */
   public readonly isolatedSubnets: ISubnet[] = [];
+
+  /**
+   * List of public subnets in this VPC deployed to an Outpost
+   */
+  public readonly publicOutpostSubnets: ISubnet[] = [];
+
+  /**
+   * List of private subnets in this VPC deployed to an Outpost
+   */
+  public readonly privateOutpostSubnets: ISubnet[] = [];
+
+  /**
+   * List of isolated subnets in this VPC deployed to an Outpost
+   */
+  public readonly isolatedOutpostSubnets: ISubnet[] = [];
 
   /**
    * AZs for this VPC
@@ -1651,6 +1896,19 @@ export class Vpc extends VpcBase {
         }
       });
 
+      // TODO: Set the gatewayId to the LGW if the configuration is set for on premises
+      (this.publicOutpostSubnets as PublicSubnet[]).forEach(publicOutpostSubnet => {
+        const gatewayId = igw.ref;
+        // configure IPv4 route
+        if (this.useIpv4) {
+          publicOutpostSubnet.addDefaultInternetRoute(gatewayId, att);
+        }
+        // configure IPv6 route if VPC is dual stack
+        if (this.useIpv6) {
+          publicOutpostSubnet.addIpv6DefaultInternetRoute(gatewayId);
+        }
+      });
+
       // if gateways are needed create them
       if (natGatewayCount > 0) {
         const provider = props.natGatewayProvider || NatProvider.gateway();
@@ -1748,10 +2006,11 @@ export class Vpc extends VpcBase {
       }
     }
 
+    //TODO: If the subnet is configured for on-premises, set the default route to the LGW
     provider.configureNat({
       vpc: this,
       natSubnets: natSubnets.slice(0, natCount),
-      privateSubnets: this.privateSubnets as PrivateSubnet[],
+      privateSubnets: [...this.privateSubnets, ...this.privateOutpostSubnets] as PrivateSubnet[],
     });
   }
 
@@ -1763,9 +2022,15 @@ export class Vpc extends VpcBase {
 
     const requestedSubnets: RequestedSubnet[] = [];
 
+    const outpostTypes = [
+      SubnetType.PUBLIC_OUTPOST,
+      SubnetType.PRIVATE_OUTPOST_WITH_EGRESS,
+      SubnetType.PRIVATE_OUTPOST_ISOLATED,
+    ];
+
     this.subnetConfiguration
-      .filter((configuration) => (configuration.outpostArn === undefined))
-      .forEach((configuration)=> {
+      .filter((configuration) => !outpostTypes.includes(configuration.subnetType))
+      .forEach((configuration) => {
         this.availabilityZones.forEach((az, index) => {
           requestedSubnets.push({
             availabilityZone: az,
@@ -1776,10 +2041,15 @@ export class Vpc extends VpcBase {
       });
 
     this.subnetConfiguration
-      .filter((configuration) => (configuration.outpostArn !== undefined))
+      .filter((configuration) => outpostTypes.includes(configuration.subnetType))
       .forEach((configuration, index)=> {
+        if (!configuration.outpostArn) {
+          throw new Error(
+            'outpostArn must be defined when an OUTPOST subnet type is configured',
+          );
+        }
         if (!configuration.outpostAvailabilityZone) {
-          throw new Error('outpostAvailabilityZone must be defined if outpostArn is defined in the subnet configuration');
+          throw new Error('outpostAvailabilityZone must be defined when an OUTPOST subnet type is configured');
         }
         requestedSubnets.push({
           availabilityZone: configuration.outpostAvailabilityZone,
@@ -1915,6 +2185,21 @@ export class Vpc extends VpcBase {
           this.isolatedSubnets.push(isolatedSubnet);
           subnet = isolatedSubnet;
           break;
+        case SubnetType.PUBLIC_OUTPOST:
+          const publicOutpostSubnet = new PublicSubnet(this, subnetConstructId, subnetProps);
+          this.publicOutpostSubnets.push(publicOutpostSubnet);
+          subnet = publicOutpostSubnet;
+          break;
+        case SubnetType.PRIVATE_OUTPOST_WITH_EGRESS:
+          const privateOutpostSubnet = new PrivateSubnet(this, subnetConstructId, subnetProps);
+          this.privateOutpostSubnets.push(privateOutpostSubnet);
+          subnet = privateOutpostSubnet;
+          break;
+        case SubnetType.PRIVATE_OUTPOST_ISOLATED:
+          const isolatedOutpostSubnet = new PrivateSubnet(this, subnetConstructId, subnetProps);
+          this.isolatedOutpostSubnets.push(isolatedOutpostSubnet);
+          subnet = isolatedOutpostSubnet;
+          break;
         default:
           throw new Error(`Unrecognized subnet type: ${subnetConfig.subnetType}`);
       }
@@ -1984,6 +2269,9 @@ function subnetTypeTagValue(type: SubnetType) {
     case SubnetType.PRIVATE_ISOLATED:
     case SubnetType.ISOLATED:
       return 'Isolated';
+    case SubnetType.PUBLIC_OUTPOST: return 'PublicOutpost';
+    case SubnetType.PRIVATE_OUTPOST_WITH_EGRESS: return 'PrivateOutpost';
+    case SubnetType.PRIVATE_OUTPOST_ISOLATED: return 'IsolatedOutpost';
   }
 }
 
@@ -2467,6 +2755,9 @@ class ImportedVpc extends VpcBase {
   public readonly publicSubnets: ISubnet[];
   public readonly privateSubnets: ISubnet[];
   public readonly isolatedSubnets: ISubnet[];
+  public readonly publicOutpostSubnets: ISubnet[];
+  public readonly privateOutpostSubnets: ISubnet[];
+  public readonly isolatedOutpostSubnets: ISubnet[];
   public readonly availabilityZones: string[];
   public readonly internetConnectivityEstablished: IDependable = new DependencyGroup();
   private readonly cidr?: string | undefined;
@@ -2498,11 +2789,17 @@ class ImportedVpc extends VpcBase {
     const pub = new ImportSubnetGroup(props.publicSubnetIds, props.publicSubnetNames, props.publicSubnetRouteTableIds, props.publicSubnetIpv4CidrBlocks, SubnetType.PUBLIC, this.availabilityZones, 'publicSubnetIds', 'publicSubnetNames', 'publicSubnetRouteTableIds', 'publicSubnetIpv4CidrBlocks');
     const priv = new ImportSubnetGroup(props.privateSubnetIds, props.privateSubnetNames, props.privateSubnetRouteTableIds, props.privateSubnetIpv4CidrBlocks, SubnetType.PRIVATE_WITH_EGRESS, this.availabilityZones, 'privateSubnetIds', 'privateSubnetNames', 'privateSubnetRouteTableIds', 'privateSubnetIpv4CidrBlocks');
     const iso = new ImportSubnetGroup(props.isolatedSubnetIds, props.isolatedSubnetNames, props.isolatedSubnetRouteTableIds, props.isolatedSubnetIpv4CidrBlocks, SubnetType.PRIVATE_ISOLATED, this.availabilityZones, 'isolatedSubnetIds', 'isolatedSubnetNames', 'isolatedSubnetRouteTableIds', 'isolatedSubnetIpv4CidrBlocks');
+    const pubOutpost = new ImportSubnetGroup(props.publicOutpostSubnetIds, props.publicOutpostSubnetNames, props.publicOutpostSubnetRouteTableIds, props.publicOutpostSubnetIpv4CidrBlocks, SubnetType.PUBLIC_OUTPOST, this.availabilityZones, 'publicOutpostSubnetIds', 'publicOutpostSubnetNames', 'publicOutpostSubnetRouteTableIds', 'publicOutpostSubnetIpv4CidrBlocks');
+    const privOutpost = new ImportSubnetGroup(props.privateOutpostSubnetIds, props.privateOutpostSubnetNames, props.privateOutpostSubnetRouteTableIds, props.privateOutpostSubnetIpv4CidrBlocks, SubnetType.PRIVATE_OUTPOST_WITH_EGRESS, this.availabilityZones, 'privateOutpostSubnetIds', 'privateOutpostSubnetNames', 'privateOutpostSubnetRouteTableIds', 'privateOutpostSubnetIpv4CidrBlocks');
+    const isoOutpost = new ImportSubnetGroup(props.isolatedOutpostSubnetIds, props.isolatedOutpostSubnetNames, props.isolatedOutpostSubnetRouteTableIds, props.isolatedOutpostSubnetIpv4CidrBlocks, SubnetType.PRIVATE_OUTPOST_ISOLATED, this.availabilityZones, 'isolatedOutpostSubnetIds', 'isolatedOutpostSubnetNames', 'isolatedOutpostSubnetRouteTableIds', 'isolatedOutpostSubnetIpv4CidrBlocks');
     /* eslint-enable max-len */
 
     this.publicSubnets = pub.import(this);
     this.privateSubnets = priv.import(this);
     this.isolatedSubnets = iso.import(this);
+    this.publicOutpostSubnets = pubOutpost.import(this);
+    this.privateOutpostSubnets = privOutpost.import(this);
+    this.isolatedOutpostSubnets = isoOutpost.import(this);
   }
 
   public get vpcCidrBlock(): string {
@@ -2521,6 +2818,9 @@ class LookedUpVpc extends VpcBase {
   public readonly publicSubnets: ISubnet[];
   public readonly privateSubnets: ISubnet[];
   public readonly isolatedSubnets: ISubnet[];
+  public readonly publicOutpostSubnets: ISubnet[];
+  public readonly privateOutpostSubnets: ISubnet[];
+  public readonly isolatedOutpostSubnets: ISubnet[];
   private readonly cidr?: string | undefined;
 
   constructor(scope: Construct, id: string, props: cxapi.VpcContextResponse, isIncomplete: boolean) {
@@ -2551,6 +2851,9 @@ class LookedUpVpc extends VpcBase {
     this.publicSubnets = this.extractSubnetsOfType(subnetGroups, cxapi.VpcSubnetGroupType.PUBLIC);
     this.privateSubnets = this.extractSubnetsOfType(subnetGroups, cxapi.VpcSubnetGroupType.PRIVATE);
     this.isolatedSubnets = this.extractSubnetsOfType(subnetGroups, cxapi.VpcSubnetGroupType.ISOLATED);
+    this.publicOutpostSubnets = this.extractSubnetsOfType(subnetGroups, cxapi.VpcSubnetGroupType.PUBLIC_OUTPOST);
+    this.privateOutpostSubnets = this.extractSubnetsOfType(subnetGroups, cxapi.VpcSubnetGroupType.PRIVATE_OUTPOST);
+    this.isolatedOutpostSubnets = this.extractSubnetsOfType(subnetGroups, cxapi.VpcSubnetGroupType.ISOLATED_OUTPOST);
   }
 
   public get vpcCidrBlock(): string {
@@ -2702,7 +3005,8 @@ class ImportedSubnet extends Resource implements ISubnet, IPublicSubnet, IPrivat
  */
 function determineNatGatewayCount(requestedCount: number | undefined, subnetConfig: SubnetConfiguration[], azCount: number) {
   const hasPrivateSubnets = subnetConfig.some(c => (c.subnetType === SubnetType.PRIVATE_WITH_EGRESS
-    || c.subnetType === SubnetType.PRIVATE || c.subnetType === SubnetType.PRIVATE_WITH_NAT) && !c.reserved);
+    || c.subnetType === SubnetType.PRIVATE || c.subnetType === SubnetType.PRIVATE_WITH_NAT
+    || c.subnetType === SubnetType.PRIVATE_OUTPOST_WITH_EGRESS || c.subnetType === SubnetType.PRIVATE_OUTPOST_ISOLATED) && !c.reserved);
   const hasPublicSubnets = subnetConfig.some(c => c.subnetType === SubnetType.PUBLIC && !c.reserved);
   const hasCustomEgress = subnetConfig.some(c => c.subnetType === SubnetType.PRIVATE_WITH_EGRESS);
 
