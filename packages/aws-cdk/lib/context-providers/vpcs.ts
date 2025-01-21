@@ -66,19 +66,19 @@ export class VpcNetworkContextProviderPlugin implements ContextProviderPlugin {
     const subnets: Subnet[] = listedSubnets.map((subnet) => {
       let type = getTag('aws-cdk:subnet-type', subnet.Tags);
       if (type === undefined && subnet.MapPublicIpOnLaunch) {
-        type = SubnetType.Public;
+        type = !subnet.OutpostArn ? SubnetType.Public : SubnetType.PublicOutpost;
       }
       if (type === undefined && routeTables.hasRouteToIgw(subnet.SubnetId)) {
-        type = SubnetType.Public;
+        type = !subnet.OutpostArn ? SubnetType.Public : SubnetType.PublicOutpost;
       }
       if (type === undefined && routeTables.hasRouteToNatGateway(subnet.SubnetId)) {
-        type = SubnetType.Private;
+        type = !subnet.OutpostArn ? SubnetType.Private : SubnetType.PrivateOutpost;
       }
       if (type === undefined && routeTables.hasRouteToTransitGateway(subnet.SubnetId)) {
-        type = SubnetType.Private;
+        type = !subnet.OutpostArn ? SubnetType.Private : SubnetType.PrivateOutpost;
       }
       if (type === undefined) {
-        type = SubnetType.Isolated;
+        type = !subnet.OutpostArn ? SubnetType.Isolated : SubnetType.IsolatedOutpost;
       }
 
       if (!isValidSubnetType(type)) {
@@ -177,6 +177,33 @@ export class VpcNetworkContextProviderPlugin implements ContextProviderPlugin {
       ),
       publicSubnetRouteTableIds: collapse(
         flatMap(findGroups(SubnetType.Public, grouped), (group) => group.subnets.map((s) => s.routeTableId)),
+      ),
+      isolatedOutpostSubnetIds: collapse(
+        flatMap(findGroups(SubnetType.IsolatedOutpost, grouped), (group) => group.subnets.map((s) => s.subnetId)),
+      ),
+      isolatedOutpostSubnetNames: collapse(
+        flatMap(findGroups(SubnetType.IsolatedOutpost, grouped), (group) => (group.name ? [group.name] : [])),
+      ),
+      isolatedOutpostSubnetRouteTableIds: collapse(
+        flatMap(findGroups(SubnetType.IsolatedOutpost, grouped), (group) => group.subnets.map((s) => s.routeTableId)),
+      ),
+      privateOutpostSubnetIds: collapse(
+        flatMap(findGroups(SubnetType.PrivateOutpost, grouped), (group) => group.subnets.map((s) => s.subnetId)),
+      ),
+      privateOutpostSubnetNames: collapse(
+        flatMap(findGroups(SubnetType.PrivateOutpost, grouped), (group) => (group.name ? [group.name] : [])),
+      ),
+      privateOutpostSubnetRouteTableIds: collapse(
+        flatMap(findGroups(SubnetType.PrivateOutpost, grouped), (group) => group.subnets.map((s) => s.routeTableId)),
+      ),
+      publicOutpostSubnetIds: collapse(
+        flatMap(findGroups(SubnetType.PublicOutpost, grouped), (group) => group.subnets.map((s) => s.subnetId)),
+      ),
+      publicOutpostSubnetNames: collapse(
+        flatMap(findGroups(SubnetType.PublicOutpost, grouped), (group) => (group.name ? [group.name] : [])),
+      ),
+      publicOutpostSubnetRouteTableIds: collapse(
+        flatMap(findGroups(SubnetType.PublicOutpost, grouped), (group) => group.subnets.map((s) => s.routeTableId)),
       ),
       vpnGatewayId,
       subnetGroups: assymetricSubnetGroups,
@@ -322,6 +349,12 @@ function subnetTypeToVpcSubnetType(type: SubnetType): VpcSubnetGroupType {
       return VpcSubnetGroupType.PRIVATE;
     case SubnetType.Public:
       return VpcSubnetGroupType.PUBLIC;
+    case SubnetType.PublicOutpost:
+      return VpcSubnetGroupType.PUBLIC_OUTPOST;
+    case SubnetType.PrivateOutpost:
+      return VpcSubnetGroupType.PRIVATE_OUTPOST;
+    case SubnetType.IsolatedOutpost:
+      return VpcSubnetGroupType.ISOLATED_OUTPOST;
   }
 }
 
@@ -329,6 +362,9 @@ enum SubnetType {
   Public = 'Public',
   Private = 'Private',
   Isolated = 'Isolated',
+  PublicOutpost = 'PublicOutpost',
+  PrivateOutpost = 'PrivateOutpost',
+  IsolatedOutpost = 'IsolatedOutpost',
 }
 
 function isValidSubnetType(val: string): val is SubnetType {
