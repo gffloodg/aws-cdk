@@ -82,20 +82,20 @@ export interface OutpostLookupOptions {
  */
 export class Outpost implements IOutpost {
   /**
-     * Import an existing Outpost by querying the AWS environment this stack is deployed to.
-     *
-     * This function needs to be used to reference Local Gateways that are required
-     * in your CDK application.
-     *
-     * Calling this method will lead to a lookup when the CDK CLI is executed.
-     * You can therefore not use any values that will only be available at
-     * CloudFormation execution time (i.e., Tokens).
-     *
-     * The Outpost information will be cached in `cdk.context.json` and the same Outpost
-     * will be used on future runs. To refresh the lookup, you will have to
-     * evict the value from the cache using the `cdk context` command. See
-     * https://docs.aws.amazon.com/cdk/latest/guide/context.html for more information.
-     */
+   * Import an existing Outpost by querying the AWS environment this stack is deployed to.
+   *
+   * This function needs to be used to reference Local Gateways that are required
+   * in your CDK application.
+   *
+   * Calling this method will lead to a lookup when the CDK CLI is executed.
+   * You can therefore not use any values that will only be available at
+   * CloudFormation execution time (i.e., Tokens).
+   *
+   * The Outpost information will be cached in `cdk.context.json` and the same Outpost
+   * will be used on future runs. To refresh the lookup, you will have to
+   * evict the value from the cache using the `cdk context` command. See
+   * https://docs.aws.amazon.com/cdk/latest/guide/context.html for more information.
+   */
   public static fromLookup(scope: Construct, options: OutpostLookupOptions): IOutpost {
     if (Token.isUnresolved(options.outpostId)) {
       throw new Error('All arguments to Outpost.fromLookup() must be concrete (no Tokens)');
@@ -124,23 +124,23 @@ export class Outpost implements IOutpost {
   }
 
   /**
-     * The ID of the Outpost
-     */
+   * The ID of the Outpost
+   */
   public readonly outpostId: string;
 
   /**
-     * The ARN of the Outpost
-     */
+   * The ARN of the Outpost
+   */
   public readonly outpostArn: string;
 
   /**
-     * Name of the Outpost
-     */
+   * Name of the Outpost
+   */
   public readonly name: string;
 
   /**
-     * Availability Zone the Outpost is connected to
-     */
+   * Availability Zone the Outpost is connected to
+   */
   public readonly availabilityZone: string;
 
   constructor(props: OutpostAttributes) {
