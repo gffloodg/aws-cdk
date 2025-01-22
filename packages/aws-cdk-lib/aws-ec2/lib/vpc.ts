@@ -1,8 +1,9 @@
 import { Construct, Dependable, DependencyGroup, IConstruct, IDependable, Node } from 'constructs';
 import { ClientVpnEndpoint, ClientVpnEndpointOptions } from './client-vpn-endpoint';
 import {
-  CfnEIP, CfnEgressOnlyInternetGateway, CfnInternetGateway, CfnNatGateway, CfnRoute, CfnRouteTable, CfnSubnet,
-  CfnSubnetRouteTableAssociation, CfnVPC, CfnVPCCidrBlock, CfnVPCGatewayAttachment, CfnVPNGatewayRoutePropagation,
+  CfnEIP, CfnEgressOnlyInternetGateway, CfnInternetGateway, CfnLocalGatewayRouteTableVPCAssociation,
+  CfnNatGateway, CfnRoute, CfnRouteTable, CfnSubnet, CfnSubnetRouteTableAssociation, CfnVPC,
+  CfnVPCCidrBlock, CfnVPCGatewayAttachment, CfnVPNGatewayRoutePropagation,
 } from './ec2.generated';
 import { AllocatedSubnet, IIpAddresses, RequestedSubnet, IpAddresses, IIpv6Addresses, Ipv6Addresses } from './ip-addresses';
 import { NatProvider } from './nat';
@@ -1343,6 +1344,16 @@ export interface VpcProps {
    * @default Ipv6Addresses.amazonProvided
    */
   readonly ipv6Addresses?: IIpv6Addresses;
+
+  /**
+   * A list of Local Gateway Route Table IDs to associate with the VPC
+   *
+   * This is only valid if one or more subnet configurations contains a
+   * PUBLIC_OUTPOST, PRIVATE_OUTPOST_WITH_EGRESS, or PRIVATE_OUTPOST_ISOLATED subnet
+   *
+   * @default - No Local Gateway Route Table IDs will be associated with the VPC
+   */
+  readonly localGatewayRouteTableIds?: string[];
 }
 
 /**
@@ -1970,6 +1981,29 @@ export class Vpc extends VpcBase {
     if ((restrictFlag && props.restrictDefaultSecurityGroup !== false) || props.restrictDefaultSecurityGroup) {
       this.restrictDefaultSecurityGroup();
     }
+
+    const outpostSubnetTypes = [
+      SubnetType.PUBLIC_OUTPOST,
+      SubnetType.PRIVATE_OUTPOST_WITH_EGRESS,
+      SubnetType.PRIVATE_OUTPOST_ISOLATED,
+    ];
+
+    const outpostSubnets = props.subnetConfiguration?.filter((subnet) => outpostSubnetTypes.includes(subnet.subnetType));
+    if (outpostSubnets && outpostSubnets.length > 0) {
+      if (!props.localGatewayRouteTableIds || props.localGatewayRouteTableIds.length === 0) {
+        throw new Error('A VPC with PUBLIC_OUTPOST, PRIVATE_OUTPOST_WITH_EGRESS, or PRIVATE_OUTPOST_ISOLATED must include one or more Local Gateway Route Table IDs');
+      }
+      props.localGatewayRouteTableIds.forEach((localGatewayRouteTableId, index) => {
+        new CfnLocalGatewayRouteTableVPCAssociation(
+          this,
+          `LocalGatewayRouteTableVpcAssociation${index}`,
+          {
+            localGatewayRouteTableId: localGatewayRouteTableId,
+            vpcId: this.vpcId,
+          },
+        );
+      });
+    }
   }
 
   /**
@@ -2022,14 +2056,14 @@ export class Vpc extends VpcBase {
 
     const requestedSubnets: RequestedSubnet[] = [];
 
-    const outpostTypes = [
+    const outpostSubnetTypes = [
       SubnetType.PUBLIC_OUTPOST,
       SubnetType.PRIVATE_OUTPOST_WITH_EGRESS,
       SubnetType.PRIVATE_OUTPOST_ISOLATED,
     ];
 
     this.subnetConfiguration
-      .filter((configuration) => !outpostTypes.includes(configuration.subnetType))
+      .filter((configuration) => !outpostSubnetTypes.includes(configuration.subnetType))
       .forEach((configuration) => {
         if (configuration.outpostArn || configuration.outpostAvailabilityZone || configuration.outpostDefaultRoute) {
           throw new Error('outpost* properties should only be set when type is one of PUBLIC_OUTPOST, PRIVATE_OUTPOST_WITH_EGRESS, or PRIVATE_OUTPOST_ISOLATED');
@@ -2044,7 +2078,7 @@ export class Vpc extends VpcBase {
       });
 
     this.subnetConfiguration
-      .filter((configuration) => outpostTypes.includes(configuration.subnetType))
+      .filter((configuration) => outpostSubnetTypes.includes(configuration.subnetType))
       .forEach((configuration, index)=> {
         if (!configuration.outpostArn) {
           throw new Error(
@@ -3022,7 +3056,7 @@ function determineNatGatewayCount(requestedCount: number | undefined, subnetConf
 
   if (count > 0 && !hasPublicSubnets) {
     // eslint-disable-next-line max-len
-    throw new Error(`If you configure PRIVATE, PUBLIC_OUPOST, or PRIVATE_OUPOST_WITH_EGRESS subnets in 'subnetConfiguration', you must also configure PUBLIC subnets to put the NAT gateways into (got ${JSON.stringify(subnetConfig)}.`);
+    throw new Error(`If you configure PRIVATE or PRIVATE_OUTPOST_WITH_EGRESS subnets in 'subnetConfiguration', you must also configure PUBLIC subnets to put the NAT gateways into (got ${JSON.stringify(subnetConfig)}.`);
   }
 
   return count;

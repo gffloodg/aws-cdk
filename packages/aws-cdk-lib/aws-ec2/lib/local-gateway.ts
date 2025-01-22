@@ -26,6 +26,11 @@ export interface ILocalGateway {
    * ID of the account that owns the Local Gateway
    */
   readonly ownerId: string;
+
+  /**
+   * A list of Local Gateway Route Table IDs associated with the Local Gateway
+   */
+  readonly localGatewayRouteTableIds: string[];
 }
 
 /**
@@ -51,6 +56,11 @@ export interface LocalGatewayAttributes {
    * ID of the account that owns the Local Gateway
    */
   readonly ownerId: string;
+
+  /**
+   * A list of Local Gateway Route Table IDs associated with the Local Gateway
+   */
+  readonly localGatewayRouteTableIds: string[];
 }
 
 /**
@@ -156,11 +166,16 @@ export class LocalGateway implements ILocalGateway {
       dummyValue: undefined,
     }).value;
 
+    if (!attributes) {
+      throw new Error(`Unable to find a Local Gateway that matches search criteria ${JSON.stringify(options)}`);
+    }
+
     return new LocalGateway({
       localGatewayId: attributes.localGatewayId,
       outpostArn: attributes.outpostArn,
       ownerId: attributes.ownerId,
       state: attributes.state,
+      localGatewayRouteTableIds: attributes.localGatewayRouteTableIds,
     });
 
     /**
@@ -178,29 +193,35 @@ export class LocalGateway implements ILocalGateway {
   }
 
   /**
-    * Identifier for this Local Gateway
-    */
+   * Identifier for this Local Gateway
+   */
   readonly localGatewayId: string;
 
   /**
-    * ARN of the Outpost connected to this Local Gateway
-    */
+   * ARN of the Outpost connected to this Local Gateway
+   */
   readonly outpostArn: string;
 
   /**
-    * State of the Local Gateway association
-    */
+   * State of the Local Gateway association
+   */
   readonly state: string;
 
   /**
-    * ID of the account that owns the Local Gateway
-    */
+   * ID of the account that owns the Local Gateway
+   */
   readonly ownerId: string;
+
+  /**
+   * A list of Local Gateway Route Table IDs associated with the Local Gateway
+   */
+  readonly localGatewayRouteTableIds: string[];
 
   constructor(props: LocalGatewayAttributes) {
     this.localGatewayId = props.localGatewayId;
     this.outpostArn = props.outpostArn;
     this.state = props.state;
     this.ownerId = props.ownerId;
+    this.localGatewayRouteTableIds = props.localGatewayRouteTableIds;
   }
 }
