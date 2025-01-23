@@ -1478,6 +1478,14 @@ export interface SubnetConfiguration {
    * @default OutpostDefaultRoute.ON_PREMISE
    */
   readonly outpostDefaultRoute?: OutpostDefaultRoute;
+
+  /**
+   * The local gateway to route traffic if the subnet is an OUTPOST type subnet, and OutpostDefaultRoute
+   * is set to ON_PREMISE
+   *
+   * @default - Throws an error if subnet type is an OUTPOST subnet type and OutpostDefaultRoute is set to ON_PREMISE
+   */
+  readonly localGatewayId?: string;
 }
 
 /**
@@ -1909,14 +1917,29 @@ export class Vpc extends VpcBase {
 
       // TODO: Set the gatewayId to the LGW if the configuration is set for on premises
       (this.publicOutpostSubnets as PublicSubnet[]).forEach(publicOutpostSubnet => {
-        const gatewayId = igw.ref;
+        const routerId =
+          publicOutpostSubnet.outpostDefaultRoute === OutpostDefaultRoute.ON_PREMISE ?
+            publicOutpostSubnet.localGatewayId! :
+            igw.ref;
+        const routerType =
+            publicOutpostSubnet.outpostDefaultRoute === OutpostDefaultRoute.ON_PREMISE
+              ? RouterType.LOCAL_GATEWAY
+              : RouterType.GATEWAY;
         // configure IPv4 route
         if (this.useIpv4) {
-          publicOutpostSubnet.addDefaultInternetRoute(gatewayId, att);
+          publicOutpostSubnet.addRoute('DefaultRoute', {
+            routerType: routerType,
+            routerId: routerId,
+            destinationCidrBlock: '0.0.0.0/0',
+          });
         }
         // configure IPv6 route if VPC is dual stack
         if (this.useIpv6) {
-          publicOutpostSubnet.addIpv6DefaultInternetRoute(gatewayId);
+          publicOutpostSubnet.addRoute('DefaultRoute6', {
+            routerType: routerType,
+            routerId: routerId,
+            destinationIpv6CidrBlock: '::/0',
+          });
         }
       });
 
@@ -1926,6 +1949,26 @@ export class Vpc extends VpcBase {
         this.createNatGateways(provider, natGatewayCount, natGatewayPlacement);
       }
     }
+
+    (this.privateOutpostSubnets as PrivateSubnet[]).filter((subnet) =>
+      subnet.outpostDefaultRoute === OutpostDefaultRoute.ON_PREMISE,
+    ).forEach((subnet) => {
+      if (this.useIpv4) {
+        subnet.addRoute('DefaultRoute', {
+          routerType: RouterType.LOCAL_GATEWAY,
+          routerId: subnet.localGatewayId!,
+          destinationCidrBlock: '0.0.0.0/0',
+        });
+      }
+      if (this.useIpv6) {
+        subnet.addRoute('DefaultRoute', {
+          routerType: RouterType.LOCAL_GATEWAY,
+          routerId: subnet.localGatewayId!,
+          destinationCidrBlock: '0.0.0.0/0',
+          destinationIpv6CidrBlock: '::/0',
+        });
+      }
+    });
 
     // Create an Egress Only Internet Gateway and attach it if necessary
     if (this.useIpv6 && this.privateSubnets) {
@@ -2040,11 +2083,14 @@ export class Vpc extends VpcBase {
       }
     }
 
+    const outpostSubnets = (this.privateOutpostSubnets as PrivateSubnet[])
+      .filter((subnet) => subnet.outpostDefaultRoute === OutpostDefaultRoute.REGION);
+
     //TODO: If the subnet is configured for on-premises, set the default route to the LGW
     provider.configureNat({
       vpc: this,
       natSubnets: natSubnets.slice(0, natCount),
-      privateSubnets: [...this.privateSubnets, ...this.privateOutpostSubnets] as PrivateSubnet[],
+      privateSubnets: [...this.privateSubnets, ...outpostSubnets] as PrivateSubnet[],
     });
   }
 
@@ -2087,6 +2133,19 @@ export class Vpc extends VpcBase {
         }
         if (!configuration.outpostAvailabilityZone) {
           throw new Error('outpostAvailabilityZone must be defined when an OUTPOST subnet type is configured');
+        }
+        if (configuration.subnetType !== SubnetType.PRIVATE_ISOLATED &&
+            configuration.outpostDefaultRoute === OutpostDefaultRoute.ON_PREMISE &&
+            !configuration.localGatewayId) {
+          throw new Error('localGatewayId must be defined when OutpostDefaultRoute is ON_PREMISE');
+        }
+        if (
+          configuration.subnetType === SubnetType.PRIVATE_OUTPOST_ISOLATED &&
+            (configuration.outpostDefaultRoute || configuration.localGatewayId)
+        ) {
+          throw new Error(
+            'OutpostDefaultRoute and localGatewayId should not be set when subnetType is PRIVATE_ISOLATED',
+          );
         }
         requestedSubnets.push({
           availabilityZone: configuration.outpostAvailabilityZone,
@@ -2223,17 +2282,29 @@ export class Vpc extends VpcBase {
           subnet = isolatedSubnet;
           break;
         case SubnetType.PUBLIC_OUTPOST:
-          const publicOutpostSubnet = new PublicSubnet(this, subnetConstructId, subnetProps);
+          const publicOutpostSubnet = new PublicSubnet(this, subnetConstructId, {
+            ...subnetProps,
+            localGatewayId: subnetConfig.localGatewayId!,
+            outpostDefaultRoute: subnetConfig.outpostDefaultRoute!,
+          });
           this.publicOutpostSubnets.push(publicOutpostSubnet);
           subnet = publicOutpostSubnet;
           break;
         case SubnetType.PRIVATE_OUTPOST_WITH_EGRESS:
-          const privateOutpostSubnet = new PrivateSubnet(this, subnetConstructId, subnetProps);
+          const privateOutpostSubnet = new PrivateSubnet(this, subnetConstructId, {
+            ...subnetProps,
+            localGatewayId: subnetConfig.localGatewayId!,
+            outpostDefaultRoute: subnetConfig.outpostDefaultRoute!,
+          });
           this.privateOutpostSubnets.push(privateOutpostSubnet);
           subnet = privateOutpostSubnet;
           break;
         case SubnetType.PRIVATE_OUTPOST_ISOLATED:
-          const isolatedOutpostSubnet = new PrivateSubnet(this, subnetConstructId, subnetProps);
+          const isolatedOutpostSubnet = new PrivateSubnet(this, subnetConstructId, {
+            ...subnetProps,
+            localGatewayId: subnetConfig.localGatewayId!,
+            outpostDefaultRoute: subnetConfig.outpostDefaultRoute!,
+          });
           this.isolatedOutpostSubnets.push(isolatedOutpostSubnet);
           subnet = isolatedOutpostSubnet;
           break;
@@ -2722,10 +2793,34 @@ function routerTypeToPropName(routerType: RouterType) {
 }
 
 export interface PublicSubnetProps extends SubnetProps {
+  /**
+   * The ID of the Local Gateway to use for the default route
+   *
+   * @default - No local gateway is associated with the subnet
+   */
+  readonly localGatewayId?: string;
 
+  /**
+   * Controls if the default route goes to the local gateway (ON_PREMISE)
+   * or the AWS Region
+   *
+   * @default - No default route is associated with the subnet
+   */
+  readonly outpostDefaultRoute?: OutpostDefaultRoute;
 }
 
-export interface IPublicSubnet extends ISubnet { }
+export interface IPublicSubnet extends ISubnet {
+  /**
+   * The ID of the Local Gateway to use for the default route
+   */
+  readonly localGatewayId?: string;
+
+  /**
+   * Controls if the default route goes to the local gateway (ON_PREMISE)
+   * or the AWS Region
+   */
+  readonly outpostDefaultRoute?: OutpostDefaultRoute;
+}
 
 export interface PublicSubnetAttributes extends SubnetAttributes { }
 
@@ -2738,8 +2833,21 @@ export class PublicSubnet extends Subnet implements IPublicSubnet {
     return new ImportedSubnet(scope, id, attrs);
   }
 
+  /**
+   * The ID of the Local Gateway to use for the default route
+   */
+  readonly localGatewayId?: string;
+
+  /**
+   * Controls if the default route goes to the local gateway (ON_PREMISE)
+   * or the AWS Region
+   */
+  readonly outpostDefaultRoute?: OutpostDefaultRoute;
+
   constructor(scope: Construct, id: string, props: PublicSubnetProps) {
     super(scope, id, props);
+    this.localGatewayId = props.localGatewayId;
+    this.outpostDefaultRoute = props.outpostDefaultRoute;
   }
 
   /**
@@ -2761,10 +2869,34 @@ export class PublicSubnet extends Subnet implements IPublicSubnet {
 }
 
 export interface PrivateSubnetProps extends SubnetProps {
+  /**
+   * The ID of the Local Gateway to use for the default route
+   *
+   * @default - No local gateway is associated with the subnet
+   */
+  readonly localGatewayId?: string;
 
+  /**
+   * Controls if the default route goes to the local gateway (ON_PREMISE)
+   * or the AWS Region
+   *
+   * @default - No default route is associated with the subnet
+   */
+  readonly outpostDefaultRoute?: OutpostDefaultRoute;
 }
 
-export interface IPrivateSubnet extends ISubnet { }
+export interface IPrivateSubnet extends ISubnet {
+  /**
+   * The ID of the Local Gateway to use for the default route
+   */
+  readonly localGatewayId?: string;
+
+  /**
+   * Controls if the default route goes to the local gateway (ON_PREMISE)
+   * or the AWS Region
+   */
+  readonly outpostDefaultRoute?: OutpostDefaultRoute;
+}
 
 export interface PrivateSubnetAttributes extends SubnetAttributes { }
 
@@ -2777,8 +2909,21 @@ export class PrivateSubnet extends Subnet implements IPrivateSubnet {
     return new ImportedSubnet(scope, id, attrs);
   }
 
+  /**
+   * The ID of the Local Gateway to use for the default route
+   */
+  readonly localGatewayId?: string;
+
+  /**
+   * Controls if the default route goes to the local gateway (ON_PREMISE)
+   * or the AWS Region
+   */
+  readonly outpostDefaultRoute?: OutpostDefaultRoute;
+
   constructor(scope: Construct, id: string, props: PrivateSubnetProps) {
     super(scope, id, props);
+    this.localGatewayId = props.localGatewayId;
+    this.outpostDefaultRoute = props.outpostDefaultRoute;
   }
 }
 
@@ -3043,7 +3188,7 @@ class ImportedSubnet extends Resource implements ISubnet, IPublicSubnet, IPrivat
 function determineNatGatewayCount(requestedCount: number | undefined, subnetConfig: SubnetConfiguration[], azCount: number) {
   const hasPrivateSubnets = subnetConfig.some(c => (c.subnetType === SubnetType.PRIVATE_WITH_EGRESS
     || c.subnetType === SubnetType.PRIVATE || c.subnetType === SubnetType.PRIVATE_WITH_NAT
-    || c.subnetType === SubnetType.PRIVATE_OUTPOST_WITH_EGRESS || c.subnetType === SubnetType.PRIVATE_OUTPOST_ISOLATED) && !c.reserved);
+    || c.subnetType === SubnetType.PRIVATE_OUTPOST_WITH_EGRESS) && !c.reserved);
   const hasPublicSubnets = subnetConfig.some(c => c.subnetType === SubnetType.PUBLIC && !c.reserved);
   const hasCustomEgress = subnetConfig.some(c => c.subnetType === SubnetType.PRIVATE_WITH_EGRESS);
 
