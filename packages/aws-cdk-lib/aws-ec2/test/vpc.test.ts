@@ -40,7 +40,6 @@ import {
   KeyPair,
   UserData,
   OutpostDefaultRoute,
-  LocalGateway,
 } from '../lib';
 
 describe('vpc', () => {

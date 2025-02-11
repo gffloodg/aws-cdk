@@ -196,7 +196,6 @@ export * as aws_opsworks from './aws-opsworks';
 export * as aws_opsworkscm from './aws-opsworkscm';
 export * as aws_organizations from './aws-organizations';
 export * as aws_osis from './aws-osis';
-export * as aws_outpost from './aws-outpost';
 export * as aws_panorama from './aws-panorama';
 export * as aws_paymentcryptography from './aws-paymentcryptography';
 export * as aws_pcaconnectorad from './aws-pcaconnectorad';

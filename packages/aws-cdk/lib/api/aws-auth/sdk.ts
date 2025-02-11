@@ -128,9 +128,6 @@ import {
   DescribeInstancesCommand,
   type DescribeInstancesCommandInput,
   type DescribeInstancesCommandOutput,
-  type DescribeLocalGatewaysCommandInput,
-  DescribeLocalGatewaysCommand,
-  type DescribeLocalGatewaysCommandOutput,
   DescribeRouteTablesCommand,
   type DescribeRouteTablesCommandInput,
   type DescribeRouteTablesCommandOutput,
@@ -149,9 +146,6 @@ import {
   DescribeVpnGatewaysCommand,
   type DescribeVpnGatewaysCommandInput,
   type DescribeVpnGatewaysCommandOutput,
-  DescribeLocalGatewayRouteTablesCommandInput,
-  DescribeLocalGatewayRouteTablesCommandOutput,
-  DescribeLocalGatewayRouteTablesCommand,
   EC2Client,
 } from '@aws-sdk/client-ec2';
 import {
@@ -254,12 +248,6 @@ import {
   type UpdateFunctionConfigurationCommandOutput,
   waitUntilFunctionUpdatedV2,
 } from '@aws-sdk/client-lambda';
-import {
-  type GetOutpostCommandInput,
-  type GetOutpostCommandOutput,
-  GetOutpostCommand,
-  OutpostsClient,
-} from '@aws-sdk/client-outposts';
 import {
   GetHostedZoneCommand,
   type GetHostedZoneCommandInput,
@@ -436,8 +424,6 @@ export interface IEC2Client {
   ): Promise<DescribeAvailabilityZonesCommandOutput>;
   describeImages(input: DescribeImagesCommandInput): Promise<DescribeImagesCommandOutput>;
   describeInstances(input: DescribeInstancesCommandInput): Promise<DescribeInstancesCommandOutput>;
-  describeLocalGateways(input: DescribeLocalGatewaysCommandInput): Promise<DescribeLocalGatewaysCommandOutput>;
-  describeLocalGatewayRouteTables(input: DescribeLocalGatewayRouteTablesCommandInput): Promise<DescribeLocalGatewayRouteTablesCommandOutput>;
   describeRouteTables(input: DescribeRouteTablesCommandInput): Promise<DescribeRouteTablesCommandOutput>;
   describeSecurityGroups(input: DescribeSecurityGroupsCommandInput): Promise<DescribeSecurityGroupsCommandOutput>;
   describeSubnets(input: DescribeSubnetsCommandInput): Promise<DescribeSubnetsCommandOutput>;
@@ -500,10 +486,6 @@ export interface ILambdaClient {
   ): Promise<UpdateFunctionConfigurationCommandOutput>;
   // Waiters
   waitUntilFunctionUpdated(delaySeconds: number, input: UpdateFunctionConfigurationCommandInput): Promise<WaiterResult>;
-}
-
-export interface IOutpostsClient {
-  getOutpost(input: GetOutpostCommandInput): Promise<GetOutpostCommandOutput>;
 }
 
 export interface IRoute53Client {
@@ -728,12 +710,6 @@ export class SDK {
         client.send(new DescribeImagesCommand(input)),
       describeInstances: (input: DescribeInstancesCommandInput): Promise<DescribeInstancesCommandOutput> =>
         client.send(new DescribeInstancesCommand(input)),
-      describeLocalGateways: (input: DescribeLocalGatewaysCommandInput): Promise<DescribeLocalGatewaysCommandOutput> =>
-        client.send(new DescribeLocalGatewaysCommand(input)),
-      describeLocalGatewayRouteTables: (
-        input: DescribeLocalGatewayRouteTablesCommandInput,
-      ): Promise<DescribeLocalGatewayRouteTablesCommandOutput> =>
-        client.send(new DescribeLocalGatewayRouteTablesCommand(input)),
       describeRouteTables: (input: DescribeRouteTablesCommandInput): Promise<DescribeRouteTablesCommandOutput> =>
         client.send(new DescribeRouteTablesCommand(input)),
       describeSecurityGroups: (
@@ -882,14 +858,6 @@ export class SDK {
           input,
         );
       },
-    };
-  }
-
-  public outpost(): IOutpostsClient {
-    const client = new OutpostsClient(this.config);
-    return {
-      getOutpost: (input: GetOutpostCommandInput): Promise<GetOutpostCommandOutput> =>
-        client.send(new GetOutpostCommand(input)),
     };
   }
 

@@ -2056,7 +2056,6 @@ export class Vpc extends VpcBase {
     const outpostSubnets = (this.privateOutpostSubnets as PrivateSubnet[])
       .filter((subnet) => subnet.outpostDefaultRoute === OutpostDefaultRoute.REGION);
 
-    //TODO: If the subnet is configured for on-premises, set the default route to the LGW
     provider.configureNat({
       vpc: this,
       natSubnets: natSubnets.slice(0, natCount),
