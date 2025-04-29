@@ -1,8 +1,9 @@
 import * as iam from 'aws-cdk-lib/aws-iam';
-import { ArnFormat, IResource, Lazy, Resource, Stack, Token } from 'aws-cdk-lib/core';
+import { ArnFormat, IResource, Lazy, Resource, Stack, Token, UnscopedValidationError, ValidationError } from 'aws-cdk-lib/core';
 import { Construct } from 'constructs';
 import { CfnMap } from 'aws-cdk-lib/aws-location';
 import { generateUniqueId } from './util';
+import { addConstructMetadata, MethodMetadata } from 'aws-cdk-lib/core/lib/metadata-resource';
 
 /**
  * Represents the Amazon Location Service Map
@@ -52,7 +53,7 @@ export interface MapProps {
   /**
    * Specifies the custom layers for the style.
    *
-   * @default - no custom layes
+   * @default - no custom layers
    */
   readonly customLayers?: CustomLayer[];
 
@@ -240,7 +241,7 @@ export class Map extends Resource implements IMap {
     const parsedArn = Stack.of(scope).splitArn(mapArn, ArnFormat.SLASH_RESOURCE_NAME);
 
     if (!parsedArn.resourceName) {
-      throw new Error(`Map Arn ${mapArn} does not have a resource name.`);
+      throw new UnscopedValidationError(`Map Arn ${mapArn} does not have a resource name.`);
     }
 
     class Import extends Resource implements IMap {
@@ -273,23 +274,25 @@ export class Map extends Resource implements IMap {
   public readonly mapUpdateTime: string;
 
   constructor(scope: Construct, id: string, props: MapProps) {
+    super(scope, id, {
+      physicalName: props.mapName ?? Lazy.string({ produce: () => generateUniqueId(this) }),
+    });
+    // Enhanced CDK Analytics Telemetry
+    addConstructMetadata(this, props);
+
     if (props.description && !Token.isUnresolved(props.description) && props.description.length > 1000) {
-      throw new Error(`\`description\` must be between 0 and 1000 characters, got: ${props.description.length} characters.`);
+      throw new ValidationError(`\`description\` must be between 0 and 1000 characters, got: ${props.description.length} characters.`, this);
     }
 
     if (props.mapName !== undefined && !Token.isUnresolved(props.mapName)) {
       if (props.mapName.length < 1 || props.mapName.length > 100) {
-        throw new Error(`\`mapName\` must be between 1 and 100 characters, got: ${props.mapName.length} characters.`);
+        throw new ValidationError(`\`mapName\` must be between 1 and 100 characters, got: ${props.mapName.length} characters.`, this);
       }
 
       if (!/^[-._\w]+$/.test(props.mapName)) {
-        throw new Error(`\`mapName\` must contain only alphanumeric characters, hyphens, periods and underscores, got: ${props.mapName}.`);
+        throw new ValidationError(`\`mapName\` must contain only alphanumeric characters, hyphens, periods and underscores, got: ${props.mapName}.`, this);
       }
     }
-
-    super(scope, id, {
-      physicalName: props.mapName ?? Lazy.string({ produce: () => generateUniqueId(this) }),
-    });
 
     const map = new CfnMap(this, 'Resource', {
       configuration: {
@@ -310,6 +313,7 @@ export class Map extends Resource implements IMap {
   /**
    * Grant the given principal identity permissions to perform the actions on this map.
    */
+  @MethodMetadata()
   public grant(grantee: iam.IGrantable, ...actions: string[]): iam.Grant {
     return iam.Grant.addToPrincipal({
       grantee: grantee,
@@ -322,6 +326,7 @@ export class Map extends Resource implements IMap {
    * Grant the given identity permissions to rendering a map resource
    * @See https://docs.aws.amazon.com/location/latest/developerguide/security_iam_id-based-policy-examples.html#security_iam_id-based-policy-examples-get-map-tiles
    */
+  @MethodMetadata()
   public grantRendering(grantee: iam.IGrantable): iam.Grant {
     return this.grant(grantee,
       'geo:GetMapTile',

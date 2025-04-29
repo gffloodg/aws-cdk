@@ -28,7 +28,7 @@ function flagsTable() {
         renderLink(mdEsc(name), githubHeadingLink(flagDetailsHeading(name, flag))),
         flag.summary,
         flag.introducedIn.v2 ?? '',
-        renderType(flag.type),
+        renderType(flag.type, 'short'),
       ],
     ),
   ]);
@@ -42,7 +42,7 @@ function removedFlags() {
     ...removedInV2.map(([name, flag]) => [
       renderLink(mdEsc(name), githubHeadingLink(flagDetailsHeading(name, flag))),
       flag.summary,
-      renderType(flag.type),
+      renderType(flag.type, 'short'),
       flag.introducedIn.v1 ?? '',
     ]),
   ]);
@@ -56,7 +56,7 @@ function changedFlags() {
     ...changedInV2.map(([name, flag]) => [
       renderLink(mdEsc(name), githubHeadingLink(flagDetailsHeading(name, flag))),
       flag.summary,
-      renderType(flag.type),
+      renderType(flag.type, 'short'),
       flag.introducedIn.v1 ?? '',
       renderValue(false),
       renderValue(flag.defaults?.v2),
@@ -65,7 +65,7 @@ function changedFlags() {
 }
 
 function migrateJson() {
-  const changedInV2 = flags(flag => !!flag.defaults?.v2 && !!flag.introducedIn.v2);
+  const changedInV2 = flags(flag => !!flag.defaults?.v2 && !!flag.introducedIn.v2 && !!flag.introducedIn.v1);
 
   const context = Object.fromEntries(changedInV2.map(([name, _]) => [name, false]));
 
@@ -82,7 +82,9 @@ function flagsDetails() {
   return allFlags.flatMap(([name, flag]) => [
     `### ${flagDetailsHeading(name, flag)}`,
     '',
-    `*${flag.summary}* ${renderType(flag.type)}`,
+    `*${flag.summary}*`,
+    '',
+    `Flag type: ${renderType(flag.type, 'long')}`,
     '',
     dedent(flag.detailsMd),
     '',
@@ -114,6 +116,7 @@ function oldBehavior(flag: FlagInfo): string | undefined {
     case FlagType.ApiDefault: return flag.compatibilityWithOldBehaviorMd;
     case FlagType.BugFix: return flag.compatibilityWithOldBehaviorMd;
     case FlagType.VisibleContext: return undefined;
+    case FlagType.Temporary: return flag.compatibilityWithOldBehaviorMd;
   }
 }
 
@@ -143,11 +146,16 @@ function flags(pred: (x: FlagInfo) => boolean) {
   return entries;
 }
 
-function renderType(type: FlagType): string {
+function renderType(type: FlagType, flavor: 'short' | 'long'): string {
   switch (type) {
-    case FlagType.ApiDefault: return '(default)';
-    case FlagType.BugFix: return '(fix)';
-    case FlagType.VisibleContext: return '(config)';
+    case FlagType.ApiDefault: return longShort('New default behavior', 'new default');
+    case FlagType.BugFix: return longShort('Backwards incompatible bugfix', 'fix');
+    case FlagType.VisibleContext: return longShort('Configuration option', 'config');
+    case FlagType.Temporary: return longShort('Temporary flag', 'temporary');
+  }
+
+  function longShort(long: string, short: string) {
+    return flavor === 'long' ? long : short;
   }
 }
 

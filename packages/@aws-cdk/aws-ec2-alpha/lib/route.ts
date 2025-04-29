@@ -1,9 +1,10 @@
 import { CfnEIP, CfnEgressOnlyInternetGateway, CfnInternetGateway, CfnNatGateway, CfnVPCPeeringConnection, CfnRoute, CfnRouteTable, CfnVPCGatewayAttachment, CfnVPNGateway, CfnVPNGatewayRoutePropagation, GatewayVpcEndpoint, IRouteTable, IVpcEndpoint, RouterType } from 'aws-cdk-lib/aws-ec2';
 import { Construct, IDependable } from 'constructs';
-import { Annotations, Duration, IResource, Resource, Tags } from 'aws-cdk-lib/core';
+import { Annotations, Duration, IResource, Resource, Tags, ValidationError } from 'aws-cdk-lib/core';
 import { IVpcV2, VPNGatewayV2Options } from './vpc-v2-base';
 import { NetworkUtils, allRouteTableIds, CidrBlock } from './util';
 import { ISubnetV2 } from './subnet-v2';
+import { addConstructMetadata, MethodMetadata } from 'aws-cdk-lib/core/lib/metadata-resource';
 
 /**
  * Indicates whether the NAT gateway supports public or private connectivity.
@@ -236,6 +237,8 @@ export class EgressOnlyInternetGateway extends Resource implements IRouteTarget 
 
   constructor(scope: Construct, id: string, props: EgressOnlyInternetGatewayProps) {
     super(scope, id);
+    // Enhanced CDK Analytics Telemetry
+    addConstructMetadata(this, props);
 
     if (props.egressOnlyInternetGatewayName) {
       Tags.of(this).add(NAME_TAG, props.egressOnlyInternetGatewayName);
@@ -278,6 +281,8 @@ export class InternetGateway extends Resource implements IRouteTarget {
 
   constructor(scope: Construct, id: string, props: InternetGatewayProps) {
     super(scope, id);
+    // Enhanced CDK Analytics Telemetry
+    addConstructMetadata(this, props);
 
     this.routerType = RouterType.GATEWAY;
 
@@ -329,7 +334,7 @@ export class VPNGatewayV2 extends Resource implements IRouteTarget {
   private readonly _attachment: CfnVPCGatewayAttachment;
 
   /**
-   * The VPN Gateway Route Propogation
+   * The VPN Gateway Route Propagation
    */
   private readonly _routePropagation: CfnVPNGatewayRoutePropagation;
 
@@ -337,6 +342,8 @@ export class VPNGatewayV2 extends Resource implements IRouteTarget {
     super(scope, id, {
       physicalName: props.vpnGatewayName,
     });
+    // Enhanced CDK Analytics Telemetry
+    addConstructMetadata(this, props);
 
     this.routerType = RouterType.GATEWAY;
 
@@ -383,7 +390,6 @@ export class VPNGatewayV2 extends Resource implements IRouteTarget {
  * @resource AWS::EC2::NatGateway
  */
 export class NatGateway extends Resource implements IRouteTarget {
-
   /**
    * Id of the NatGateway
    * @attribute
@@ -422,6 +428,8 @@ export class NatGateway extends Resource implements IRouteTarget {
 
   constructor(scope: Construct, id: string, props: NatGatewayProps) {
     super(scope, id);
+    // Enhanced CDK Analytics Telemetry
+    addConstructMetadata(this, props);
 
     this.routerType = RouterType.NAT_GATEWAY;
 
@@ -430,7 +438,7 @@ export class NatGateway extends Resource implements IRouteTarget {
 
     if (this.connectivityType === NatConnectivityType.PUBLIC) {
       if (!props.vpc && !props.allocationId) {
-        throw new Error('Either provide vpc or allocationId');
+        throw new ValidationError('Either provide vpc or allocationId', this);
       }
     }
 
@@ -443,7 +451,7 @@ export class NatGateway extends Resource implements IRouteTarget {
     if (this.connectivityType === NatConnectivityType.PUBLIC) {
       if (!props.allocationId) {
         let eip = new CfnEIP(this, 'EIP', {
-          domain: props.vpc?.vpcId,
+          domain: 'vpc',
         });
         aId = eip.attrAllocationId;
       } else {
@@ -471,7 +479,6 @@ export class NatGateway extends Resource implements IRouteTarget {
  * @resource AWS::EC2::VPCPeeringConnection
  */
 export class VPCPeeringConnection extends Resource implements IRouteTarget {
-
   /**
    * The type of router used in the route.
    */
@@ -489,22 +496,24 @@ export class VPCPeeringConnection extends Resource implements IRouteTarget {
 
   constructor(scope: Construct, id: string, props: VPCPeeringConnectionProps) {
     super(scope, id);
+    // Enhanced CDK Analytics Telemetry
+    addConstructMetadata(this, props);
 
     this.routerType = RouterType.VPC_PEERING_CONNECTION;
 
     const isCrossAccount = props.requestorVpc.ownerAccountId !== props.acceptorVpc.ownerAccountId;
 
     if (!isCrossAccount && props.peerRoleArn) {
-      throw new Error('peerRoleArn is not needed for same account peering');
+      throw new ValidationError('peerRoleArn is not needed for same account peering', this);
     }
 
     if (isCrossAccount && !props.peerRoleArn) {
-      throw new Error('Cross account VPC peering requires peerRoleArn');
+      throw new ValidationError('Cross account VPC peering requires peerRoleArn', this);
     }
 
     const overlap = this.validateVpcCidrOverlap(props.requestorVpc, props.acceptorVpc);
     if (overlap) {
-      throw new Error('CIDR block should not overlap with each other for establishing a peering connection');
+      throw new ValidationError('CIDR block should not overlap with each other for establishing a peering connection', this);
     }
     if (props.vpcPeeringConnectionName) {
       Tags.of(this).add(NAME_TAG, props.vpcPeeringConnectionName);
@@ -531,7 +540,6 @@ export class VPCPeeringConnection extends Resource implements IRouteTarget {
    * @internal
    */
   private validateVpcCidrOverlap(requestorVpc: IVpcV2, acceptorVpc: IVpcV2): boolean {
-
     const requestorCidrs = [requestorVpc.ipv4CidrBlock];
     const acceptorCidrs = [acceptorVpc.ipv4CidrBlock];
 
@@ -563,7 +571,6 @@ export class VPCPeeringConnection extends Resource implements IRouteTarget {
 
     return false;
   }
-
 }
 
 /**
@@ -608,12 +615,8 @@ export class RouteTargetType {
   readonly endpoint?: IVpcEndpoint;
 
   constructor(props: RouteTargetProps) {
-    if ((props.gateway && props.endpoint) || (!props.gateway && !props.endpoint)) {
-      throw new Error('Exactly one of `gateway` or `endpoint` must be specified.');
-    } else {
-      this.gateway = props.gateway;
-      this.endpoint = props.endpoint;
-    }
+    this.gateway = props.gateway;
+    this.endpoint = props.endpoint;
   }
 }
 
@@ -696,7 +699,7 @@ export class Route extends Resource implements IRouteV2 {
   public readonly routeTable: IRouteTable;
 
   /**
-   * The type of router the route is targetting
+   * The type of router the route is targeting
    */
   public readonly targetRouterType: RouterType;
 
@@ -717,20 +720,26 @@ export class Route extends Resource implements IRouteV2 {
 
   constructor(scope: Construct, id: string, props: RouteProps) {
     super(scope, id);
+    // Enhanced CDK Analytics Telemetry
+    addConstructMetadata(this, props);
 
     this.target = props.target;
     this.routeTable = props.routeTable;
     this.destination = props.destination;
     const isDestinationIpv4 = NetworkUtils.validIp(props.destination);
     if (!isDestinationIpv4) {
-      //TODO Validate for IPv6 CIDR range
+      // TODO Validate for IPv6 CIDR range
       this.destinationIpv6Cidr = props.destination;
     } else {
       this.destinationIpv4Cidr = props.destination;
     }
 
     if (this.target.gateway?.routerType === RouterType.EGRESS_ONLY_INTERNET_GATEWAY && isDestinationIpv4) {
-      throw new Error('Egress only internet gateway does not support IPv4 routing');
+      throw new ValidationError('Egress only internet gateway does not support IPv4 routing', this);
+    }
+
+    if ((props.target.gateway && props.target.endpoint) || (!props.target.gateway && !props.target.endpoint)) {
+      throw new ValidationError('Exactly one of `gateway` or `endpoint` must be specified.', this);
     }
     this.targetRouterType = this.target.gateway ? this.target.gateway.routerType : RouterType.VPC_ENDPOINT;
     // Gateway generates route automatically via its RouteTable, thus we don't need to generate the resource for it
@@ -745,7 +754,7 @@ export class Route extends Resource implements IRouteV2 {
     }
     this.node.defaultChild = this.resource;
 
-    //Create a route only after target gateway or endpoint is created
+    // Create a route only after target gateway or endpoint is created
     if (this.target.gateway) {
       this.node.addDependency(this.target.gateway);
     }
@@ -789,6 +798,8 @@ export class RouteTable extends Resource implements IRouteTable {
 
   constructor(scope: Construct, id: string, props: RouteTableProps) {
     super(scope, id);
+    // Enhanced CDK Analytics Telemetry
+    addConstructMetadata(this, props);
 
     this.resource = new CfnRouteTable(this, 'RouteTable', {
       vpcId: props.vpc.vpcId,
@@ -808,6 +819,7 @@ export class RouteTable extends Resource implements IRouteTable {
    * @param target The gateway or endpoint targeted by the route.
    * @param routeName The resource name of the route.
    */
+  @MethodMetadata()
   public addRoute(id: string, destination: string, target: RouteTargetType, routeName?: string) {
     new Route(this, id, {
       routeTable: this,

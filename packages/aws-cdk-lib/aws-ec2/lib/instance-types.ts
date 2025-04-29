@@ -1,3 +1,5 @@
+import { UnscopedValidationError } from '../../core';
+
 /**
  * What class and generation of instance to use
  *
@@ -705,8 +707,8 @@ export enum InstanceClass {
   D3 = 'd3',
 
   /**
-  * Storage-optimized instances, 3rd generation
-  */
+   * Storage-optimized instances, 3rd generation
+   */
   STORAGE3_ENHANCED_NETWORK = 'storage3-enhanced-network',
 
   /**
@@ -1954,7 +1956,7 @@ export class InstanceType {
     // capture the family, generation, capabilities, and size portions of the instance type id
     const instanceTypeComponents = this.instanceTypeIdentifier.match(/^([a-z]+)(\d{1,2})([a-z\-]*)\.([a-z0-9\-]+)$/);
     if (instanceTypeComponents == null) {
-      throw new Error('Malformed instance type identifier');
+      throw new UnscopedValidationError('Malformed instance type identifier');
     }
 
     const family = instanceTypeComponents[1];
@@ -1974,7 +1976,7 @@ export class InstanceType {
     const instanceClassId = this.instanceTypeIdentifier.match(instanceClass);
     const otherInstanceClassId = other.instanceTypeIdentifier.match(instanceClass);
     if (instanceClassId == null || otherInstanceClassId == null) {
-      throw new Error('Malformed instance type identifier');
+      throw new UnscopedValidationError('Malformed instance type identifier');
     }
     return instanceClassId[1] === otherInstanceClassId[1];
   }
@@ -1985,5 +1987,4 @@ export class InstanceType {
   public isBurstable(): boolean {
     return this.instanceTypeIdentifier.startsWith('t3') || this.instanceTypeIdentifier.startsWith('t4g') || this.instanceTypeIdentifier.startsWith('t2');
   }
-
 }

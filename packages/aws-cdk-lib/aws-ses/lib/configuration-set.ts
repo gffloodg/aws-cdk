@@ -3,7 +3,8 @@ import { ConfigurationSetEventDestination, ConfigurationSetEventDestinationOptio
 import { IDedicatedIpPool } from './dedicated-ip-pool';
 import { undefinedIfNoKeys } from './private/utils';
 import { CfnConfigurationSet } from './ses.generated';
-import { Duration, IResource, Resource, Token } from '../../core';
+import { Duration, IResource, Resource, Token, ValidationError } from '../../core';
+import { addConstructMetadata, MethodMetadata } from '../../core/lib/metadata-resource';
 
 /**
  * A configuration set
@@ -174,16 +175,18 @@ export class ConfigurationSet extends Resource implements IConfigurationSet {
     super(scope, id, {
       physicalName: props.configurationSetName,
     });
+    // Enhanced CDK Analytics Telemetry
+    addConstructMetadata(this, props);
 
     if (props.disableSuppressionList && props.suppressionReasons) {
-      throw new Error('When disableSuppressionList is true, suppressionReasons must not be specified.');
+      throw new ValidationError('When disableSuppressionList is true, suppressionReasons must not be specified.', this);
     }
     if (props.maxDeliveryDuration && !Token.isUnresolved(props.maxDeliveryDuration)) {
       if (props.maxDeliveryDuration.toMilliseconds() < Duration.minutes(5).toMilliseconds()) {
-        throw new Error(`The maximum delivery duration must be greater than or equal to 5 minutes (300_000 milliseconds), got: ${props.maxDeliveryDuration.toMilliseconds()} milliseconds.`);
+        throw new ValidationError(`The maximum delivery duration must be greater than or equal to 5 minutes (300_000 milliseconds), got: ${props.maxDeliveryDuration.toMilliseconds()} milliseconds.`, this);
       }
       if (props.maxDeliveryDuration.toSeconds() > Duration.hours(14).toSeconds()) {
-        throw new Error(`The maximum delivery duration must be less than or equal to 14 hours (50400 seconds), got: ${props.maxDeliveryDuration.toSeconds()} seconds.`);
+        throw new ValidationError(`The maximum delivery duration must be less than or equal to 14 hours (50400 seconds), got: ${props.maxDeliveryDuration.toSeconds()} seconds.`, this);
       }
     }
 
@@ -222,6 +225,7 @@ export class ConfigurationSet extends Resource implements IConfigurationSet {
   /**
    * Adds an event destination to this configuration set
    */
+  @MethodMetadata()
   public addEventDestination(id: string, options: ConfigurationSetEventDestinationOptions): ConfigurationSetEventDestination {
     return new ConfigurationSetEventDestination(this, id, {
       ...options,

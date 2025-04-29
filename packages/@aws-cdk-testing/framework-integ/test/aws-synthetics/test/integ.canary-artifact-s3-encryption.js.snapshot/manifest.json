@@ -1,5 +1,5 @@
 {
-  "version": "36.0.0",
+  "version": "42.0.0",
   "artifacts": {
     "canary-artifact-s3-encryption.assets": {
       "type": "cdk:asset-manifest",
@@ -18,7 +18,7 @@
         "validateOnSynth": false,
         "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-deploy-role-${AWS::AccountId}-${AWS::Region}",
         "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-cfn-exec-role-${AWS::AccountId}-${AWS::Region}",
-        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/f6aad262db732f8a3d154c577c54fbd4f8d3a3ac9cf0ab7bcf5aa7bcc9f79f50.json",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/dd08ac62b48cf9a12ae7bff036cc1a04c17e2a73cf77950e1cddd0e66b64d670.json",
         "requiresBootstrapStackVersion": 6,
         "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
         "additionalDependencies": [
@@ -34,16 +34,39 @@
         "canary-artifact-s3-encryption.assets"
       ],
       "metadata": {
+        "/canary-artifact-s3-encryption/MyTestBucket": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": {
+              "removalPolicy": "destroy",
+              "autoDeleteObjects": true
+            }
+          }
+        ],
         "/canary-artifact-s3-encryption/MyTestBucket/Resource": [
           {
             "type": "aws:cdk:logicalId",
             "data": "MyTestBucket81062429"
           }
         ],
+        "/canary-artifact-s3-encryption/MyTestBucket/Policy": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": {
+              "bucket": "*"
+            }
+          }
+        ],
         "/canary-artifact-s3-encryption/MyTestBucket/Policy/Resource": [
           {
             "type": "aws:cdk:logicalId",
             "data": "MyTestBucketPolicyE11AF29F"
+          }
+        ],
+        "/canary-artifact-s3-encryption/MyTestBucket/AutoDeleteObjectsCustomResource": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": "*"
           }
         ],
         "/canary-artifact-s3-encryption/MyTestBucket/AutoDeleteObjectsCustomResource/Default": [
@@ -58,6 +81,12 @@
             "data": "LatestNodeRuntimeMap"
           }
         ],
+        "/canary-artifact-s3-encryption/Custom::S3AutoDeleteObjectsCustomResourceProvider": [
+          {
+            "type": "aws:cdk:is-custom-resource-handler-customResourceProvider",
+            "data": true
+          }
+        ],
         "/canary-artifact-s3-encryption/Custom::S3AutoDeleteObjectsCustomResourceProvider/Role": [
           {
             "type": "aws:cdk:logicalId",
@@ -70,22 +99,69 @@
             "data": "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F"
           }
         ],
-        "/canary-artifact-s3-encryption/CanarySseS3/ServiceRole/Resource": [
+        "/canary-artifact-s3-encryption/CanarySseS3Puppeteer": [
           {
-            "type": "aws:cdk:logicalId",
-            "data": "CanarySseS3ServiceRoleC3DFF4A1"
+            "type": "aws:cdk:analytics:construct",
+            "data": {
+              "test": "*",
+              "schedule": "*",
+              "artifactsBucketLocation": {
+                "bucket": "*",
+                "prefix": "*"
+              },
+              "runtime": "*",
+              "cleanup": "lambda",
+              "artifactS3EncryptionMode": "SSE_S3"
+            }
           }
         ],
-        "/canary-artifact-s3-encryption/CanarySseS3/Resource": [
+        "/canary-artifact-s3-encryption/CanarySseS3Puppeteer/ServiceRole": [
           {
-            "type": "aws:cdk:logicalId",
-            "data": "CanarySseS377E9DBF2"
+            "type": "aws:cdk:analytics:construct",
+            "data": {
+              "assumedBy": {
+                "principalAccount": "*",
+                "assumeRoleAction": "*"
+              },
+              "inlinePolicies": "*",
+              "managedPolicies": []
+            }
           }
         ],
-        "/canary-artifact-s3-encryption/CanarySseS3/AutoDeleteUnderlyingResourcesCustomResource/Default": [
+        "/canary-artifact-s3-encryption/CanarySseS3Puppeteer/ServiceRole/ImportServiceRole": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": "*"
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseS3Puppeteer/ServiceRole/Resource": [
           {
             "type": "aws:cdk:logicalId",
-            "data": "CanarySseS3AutoDeleteUnderlyingResourcesCustomResource683951EB"
+            "data": "CanarySseS3PuppeteerServiceRoleDD7268F4"
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseS3Puppeteer/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CanarySseS3PuppeteerA20CC1A3"
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseS3Puppeteer/AutoDeleteUnderlyingResourcesCustomResource": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": "*"
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseS3Puppeteer/AutoDeleteUnderlyingResourcesCustomResource/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CanarySseS3PuppeteerAutoDeleteUnderlyingResourcesCustomResource63BEB161"
+          }
+        ],
+        "/canary-artifact-s3-encryption/Custom::SyntheticsAutoDeleteUnderlyingResourcesCustomResourceProvider": [
+          {
+            "type": "aws:cdk:is-custom-resource-handler-customResourceProvider",
+            "data": true
           }
         ],
         "/canary-artifact-s3-encryption/Custom::SyntheticsAutoDeleteUnderlyingResourcesCustomResourceProvider/Role": [
@@ -100,16 +176,172 @@
             "data": "CustomSyntheticsAutoDeleteUnderlyingResourcesCustomResourceProviderHandler26776D4E"
           }
         ],
+        "/canary-artifact-s3-encryption/CanarySseS3PlayWright": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": {
+              "test": "*",
+              "schedule": "*",
+              "artifactsBucketLocation": {
+                "bucket": "*",
+                "prefix": "*"
+              },
+              "runtime": "*",
+              "cleanup": "lambda",
+              "artifactS3EncryptionMode": "SSE_S3"
+            }
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseS3PlayWright/ServiceRole": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": {
+              "assumedBy": {
+                "principalAccount": "*",
+                "assumeRoleAction": "*"
+              },
+              "inlinePolicies": "*",
+              "managedPolicies": []
+            }
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseS3PlayWright/ServiceRole/ImportServiceRole": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": "*"
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseS3PlayWright/ServiceRole/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CanarySseS3PlayWrightServiceRole3656FB16"
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseS3PlayWright/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CanarySseS3PlayWright86A57930"
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseS3PlayWright/AutoDeleteUnderlyingResourcesCustomResource": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": "*"
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseS3PlayWright/AutoDeleteUnderlyingResourcesCustomResource/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CanarySseS3PlayWrightAutoDeleteUnderlyingResourcesCustomResource5B3ABFF5"
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseKmsWithoutKeySetting": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": {
+              "test": "*",
+              "schedule": "*",
+              "artifactsBucketLocation": {
+                "bucket": "*",
+                "prefix": "*"
+              },
+              "runtime": "*",
+              "cleanup": "lambda",
+              "artifactS3EncryptionMode": "SSE_KMS"
+            }
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseKmsWithoutKeySetting/ServiceRole": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": {
+              "assumedBy": {
+                "principalAccount": "*",
+                "assumeRoleAction": "*"
+              },
+              "inlinePolicies": "*",
+              "managedPolicies": []
+            }
+          },
+          {
+            "type": "aws:cdk:analytics:method",
+            "data": {
+              "addToPrincipalPolicy": [
+                {}
+              ]
+            }
+          },
+          {
+            "type": "aws:cdk:analytics:method",
+            "data": {
+              "attachInlinePolicy": [
+                "*"
+              ]
+            }
+          },
+          {
+            "type": "aws:cdk:analytics:method",
+            "data": {
+              "attachInlinePolicy": [
+                "*"
+              ]
+            }
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseKmsWithoutKeySetting/ServiceRole/ImportServiceRole": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": "*"
+          }
+        ],
         "/canary-artifact-s3-encryption/CanarySseKmsWithoutKeySetting/ServiceRole/Resource": [
           {
             "type": "aws:cdk:logicalId",
             "data": "CanarySseKmsWithoutKeySettingServiceRole50435BBC"
           }
         ],
+        "/canary-artifact-s3-encryption/CanarySseKmsWithoutKeySetting/ServiceRole/DefaultPolicy": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": "*"
+          },
+          {
+            "type": "aws:cdk:analytics:method",
+            "data": {
+              "attachToRole": [
+                "*"
+              ]
+            }
+          },
+          {
+            "type": "aws:cdk:analytics:method",
+            "data": {
+              "attachToRole": [
+                "*"
+              ]
+            }
+          },
+          {
+            "type": "aws:cdk:analytics:method",
+            "data": {
+              "addStatements": [
+                {}
+              ]
+            }
+          }
+        ],
         "/canary-artifact-s3-encryption/CanarySseKmsWithoutKeySetting/ServiceRole/DefaultPolicy/Resource": [
           {
             "type": "aws:cdk:logicalId",
             "data": "CanarySseKmsWithoutKeySettingServiceRoleDefaultPolicyAC49E578"
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseKmsWithoutKeySetting/Key": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": {
+              "description": "*"
+            }
           }
         ],
         "/canary-artifact-s3-encryption/CanarySseKmsWithoutKeySetting/Key/Resource": [
@@ -124,10 +356,24 @@
             "data": "CanarySseKmsWithoutKeySettingD8C26A32"
           }
         ],
+        "/canary-artifact-s3-encryption/CanarySseKmsWithoutKeySetting/AutoDeleteUnderlyingResourcesCustomResource": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": "*"
+          }
+        ],
         "/canary-artifact-s3-encryption/CanarySseKmsWithoutKeySetting/AutoDeleteUnderlyingResourcesCustomResource/Default": [
           {
             "type": "aws:cdk:logicalId",
             "data": "CanarySseKmsWithoutKeySettingAutoDeleteUnderlyingResourcesCustomResourceB288EFE0"
+          }
+        ],
+        "/canary-artifact-s3-encryption/Key": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": {
+              "removalPolicy": "destroy"
+            }
           }
         ],
         "/canary-artifact-s3-encryption/Key/Resource": [
@@ -136,10 +382,100 @@
             "data": "Key961B73FD"
           }
         ],
+        "/canary-artifact-s3-encryption/CanarySseKmsWith": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": {
+              "test": "*",
+              "schedule": "*",
+              "artifactsBucketLocation": {
+                "bucket": "*",
+                "prefix": "*"
+              },
+              "runtime": "*",
+              "cleanup": "lambda",
+              "artifactS3EncryptionMode": "SSE_KMS",
+              "artifactS3KmsKey": "*"
+            }
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseKmsWith/ServiceRole": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": {
+              "assumedBy": {
+                "principalAccount": "*",
+                "assumeRoleAction": "*"
+              },
+              "inlinePolicies": "*",
+              "managedPolicies": []
+            }
+          },
+          {
+            "type": "aws:cdk:analytics:method",
+            "data": {
+              "addToPrincipalPolicy": [
+                {}
+              ]
+            }
+          },
+          {
+            "type": "aws:cdk:analytics:method",
+            "data": {
+              "attachInlinePolicy": [
+                "*"
+              ]
+            }
+          },
+          {
+            "type": "aws:cdk:analytics:method",
+            "data": {
+              "attachInlinePolicy": [
+                "*"
+              ]
+            }
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseKmsWith/ServiceRole/ImportServiceRole": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": "*"
+          }
+        ],
         "/canary-artifact-s3-encryption/CanarySseKmsWith/ServiceRole/Resource": [
           {
             "type": "aws:cdk:logicalId",
             "data": "CanarySseKmsWithServiceRoleDE325788"
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseKmsWith/ServiceRole/DefaultPolicy": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": "*"
+          },
+          {
+            "type": "aws:cdk:analytics:method",
+            "data": {
+              "attachToRole": [
+                "*"
+              ]
+            }
+          },
+          {
+            "type": "aws:cdk:analytics:method",
+            "data": {
+              "attachToRole": [
+                "*"
+              ]
+            }
+          },
+          {
+            "type": "aws:cdk:analytics:method",
+            "data": {
+              "addStatements": [
+                {}
+              ]
+            }
           }
         ],
         "/canary-artifact-s3-encryption/CanarySseKmsWith/ServiceRole/DefaultPolicy/Resource": [
@@ -152,6 +488,12 @@
           {
             "type": "aws:cdk:logicalId",
             "data": "CanarySseKmsWith1F191227"
+          }
+        ],
+        "/canary-artifact-s3-encryption/CanarySseKmsWith/AutoDeleteUnderlyingResourcesCustomResource": [
+          {
+            "type": "aws:cdk:analytics:construct",
+            "data": "*"
           }
         ],
         "/canary-artifact-s3-encryption/CanarySseKmsWith/AutoDeleteUnderlyingResourcesCustomResource/Default": [
@@ -229,5 +571,6 @@
         "file": "tree.json"
       }
     }
-  }
+  },
+  "minimumCliVersion": "2.1006.0"
 }
